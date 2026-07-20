@@ -186,7 +186,40 @@ Qwen 2.5 3B Instruct, temperature 0.7, one trace per item across the selected ta
 
 Answer extraction uses a forced final-answer format with a regular-expression fallback. **Extraction failures are counted separately and never silently scored as wrong**, since conflating "the model did not answer" with "the model answered incorrectly" corrupts every accuracy figure downstream.
 
-Data are split by task family before any experiment and frozen with a committed hash: four training families, two held-out families, two transfer families untouched during training. Heavily symbolic tasks (word sorting, arithmetic, object counting and similar) are excluded on the stated ground that argument structure is degenerate for them. The exclusion is a scoping decision, declared openly rather than discovered later.
+### E0.1 Data splits: four tiers at increasing distance from training
+
+Declared in `docs/splits.json`, frozen and committed before any model sees data, and fingerprinted so that the run log shows immediately if two runs were not comparable.
+
+| Tier | Content | What it measures |
+|---|---|---|
+| Train | 80% of items from 6 families | learning |
+| Held-out | the remaining 20%, **same families** | new questions, familiar reasoning |
+| Transfer | 4 **entirely unseen families** | new reasoning types, same benchmark |
+| GSM8K | a separate benchmark, 250 items | cross-benchmark generalisation |
+
+Only the training tier is ever trained on. The item-level split is computed deterministically from a seed recorded in the split file, so exact question lists are reproducible without committing the data itself.
+
+**The gap between held-out and transfer is the interesting comparison.** It separates having learned the questions from having learned to reason. The gap between transfer and GSM8K separates within-benchmark generality from actual generality.
+
+**Training families** (6): formal fallacies, logical deduction (three and five objects), web of lies, disambiguation QA, navigate. Selected on a criterion stated before any reward was computed: a family is eligible only if its chains of thought contain natural-language inferential steps.
+
+**Transfer families** (4): date understanding, penguins in a table, reasoning about coloured objects, temporal sequences. Deliberately mixed in reasoning type, so that transfer is not measured against a near-duplicate of the training set.
+
+**Exclusions** (17 families), each with a stated reason rather than a silent omission:
+
+- *Symbolic or mechanical* (9), including word sorting, arithmetic, object counting, Dyck languages and the shuffled-object tasks. Their reasoning is symbol manipulation, so an argument graph over such a trace is degenerate and scoring it would measure noise.
+- *Chain-of-thought underperforms* (3): causal judgement, ruin names, snarks. Suzgun et al. (2023) report chain-of-thought prompting at or below direct prompting on these. Including them would confound a reasoning-quality intervention with tasks where reasoning aloud actively hurts.
+- *Weak or redundant* (5): minimal inferential chain, or near-duplicates of a training family.
+
+Excluding roughly two thirds of the benchmark is a substantial scoping decision and is presented as one. The alternative, training an argument-structure reward on word-sorting traces, would produce a measurement of nothing.
+
+### E0.2 GSM8K as an external evaluation set
+
+Two hundred and fifty grade-school maths word problems, evaluation only, never trained on. It is included because within-benchmark transfer is a weaker claim than it appears: unseen BBH families still share format, prompt style, and answer conventions with the training families.
+
+GSM8K shares none of those, and its reasoning is arithmetic rather than verbal. It is therefore a deliberately hard test of the central thesis. If argumentative structure improves reasoning generally rather than improving performance on one benchmark's conventions, the effect should survive the move. If it does not survive, that boundary is itself a finding worth reporting precisely.
+
+Cost is negligible: inference on finished checkpoints, no additional training.
 
 ### E1. Correlation and characterisation
 
@@ -237,7 +270,7 @@ The anticipated exploits, named in advance: restating steps to inflate the graph
 
 ## 5. Evaluation
 
-**Primary.** Exact-match accuracy on held-out items and on transfer families. This is independent of the training signal, which avoids the circularity of evaluating a reward with itself.
+**Primary.** Exact-match accuracy across all four tiers: held-out items, transfer families, and GSM8K. Reported as a single table, since the *shape* of the decline across tiers is more informative than any one number. All of these are independent of the training signal, which avoids the circularity of evaluating a reward with itself.
 
 **Secondary.** Logical-consistency rate on a HaluEval subset, off-the-shelf and inference-only.
 

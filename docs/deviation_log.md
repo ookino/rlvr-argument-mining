@@ -39,3 +39,28 @@ log as maturity, and a silent omission as a gap.
   comparison that carries the thesis and the correlation study that stands
   without it.
 - **Effect on claims:** narrows generality. Stated openly in Limitations.
+
+### D-004  2026-07-20  GSM8K added as an external evaluation set
+- **Planned:** train and evaluate entirely within BIG-Bench Hard.
+- **Actual:** training unchanged; GSM8K (250 items, test split) added as a
+  fourth evaluation tier, inference only.
+- **Reason:** raised by the supervisor. Within-benchmark transfer is a weaker
+  claim than it looks, since unseen BBH families still share format, prompt
+  style and answer conventions with the trained ones. GSM8K shares none of
+  these and its reasoning is arithmetic rather than verbal, so it is a genuine
+  test of whether the effect is about reasoning or about one benchmark's
+  conventions.
+- **Effect on claims:** strengthens them. The generalisation claim becomes
+  cross-benchmark rather than within-benchmark. Cost is negligible: no extra
+  training runs.
+
+### D-005  2026-07-20  Held-out tier redefined
+- **Planned:** "held-out families" and "transfer families" as separate tiers.
+- **Actual:** held-out is now 20% of items from the SAME families used for
+  training; transfer remains entirely unseen families.
+- **Reason:** as originally written the two tiers both measured unseen
+  families, so they tested the same thing twice. The revision gives four tiers
+  at increasing distance from training, and makes the held-out to transfer gap
+  interpretable as the difference between learning the questions and learning
+  to reason.
+- **Effect on claims:** none invalidated. No data had been generated.

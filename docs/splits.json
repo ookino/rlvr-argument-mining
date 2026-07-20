@@ -1,0 +1,84 @@
+{
+  "_comment": [
+    "FROZEN DATA SPLIT. Committed before any model sees data, per the",
+    "experiment plan. Changing anything here after the first training run is a",
+    "deviation log entry.",
+    "",
+    "Family assignment is declared here. The item-level 80/20 split within the",
+    "training families is computed deterministically from split_seed at load",
+    "time (see data.py), so this file stays small and readable while the exact",
+    "item lists remain reproducible.",
+    "",
+    "Selection criterion, stated before any reward was computed: a family is",
+    "eligible for training only if its chains of thought contain natural",
+    "language inferential steps. Families whose reasoning is symbolic or",
+    "mechanical are excluded, because argument structure is degenerate for",
+    "them and scoring it would be measuring noise."
+  ],
+
+  "benchmark": "lukaemon/bbh",
+  "split_seed": 13,
+  "held_out_fraction": 0.2,
+
+  "train_families": [
+    "formal_fallacies",
+    "logical_deduction_three_objects",
+    "logical_deduction_five_objects",
+    "web_of_lies",
+    "disambiguation_qa",
+    "navigate"
+  ],
+
+  "transfer_families": [
+    "date_understanding",
+    "penguins_in_a_table",
+    "reasoning_about_colored_objects",
+    "temporal_sequences"
+  ],
+
+  "excluded": {
+    "symbolic_or_mechanical": {
+      "reason": "Reasoning is symbolic manipulation, not natural language inference. An argument graph over these traces is degenerate.",
+      "families": [
+        "boolean_expressions",
+        "dyck_languages",
+        "multistep_arithmetic_two",
+        "object_counting",
+        "word_sorting",
+        "geometric_shapes",
+        "tracking_shuffled_objects_three_objects",
+        "tracking_shuffled_objects_five_objects",
+        "tracking_shuffled_objects_seven_objects"
+      ]
+    },
+    "chain_of_thought_underperforms": {
+      "reason": "Suzgun et al. (2023) report chain-of-thought prompting performing at or below direct prompting on these. Including them would confound a reasoning-quality intervention with a task where reasoning aloud actively hurts.",
+      "families": [
+        "causal_judgement",
+        "ruin_names",
+        "snarks"
+      ]
+    },
+    "weak_or_redundant": {
+      "reason": "Minimal inferential chain (single judgement or lookup), or near-duplicate of a training family.",
+      "families": [
+        "hyperbaton",
+        "movie_recommendation",
+        "salient_translation_error_detection",
+        "sports_understanding",
+        "logical_deduction_seven_objects"
+      ]
+    }
+  },
+
+  "external_eval": {
+    "_comment": "Evaluation only. Never trained on. Answers the cross-benchmark generalisation question rather than the within-benchmark one.",
+    "gsm8k": {
+      "dataset": "gsm8k",
+      "config": "main",
+      "split": "test",
+      "n_items": 250,
+      "sample_seed": 13
+    }
+  }
+}
