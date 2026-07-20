@@ -64,3 +64,19 @@ log as maturity, and a silent omission as a gap.
   interpretable as the difference between learning the questions and learning
   to reason.
 - **Effect on claims:** none invalidated. No data had been generated.
+
+### D-006  2026-07-20  Training widened to 8 files; LogiQA added as a fifth tier
+- **Planned:** 6 BBH training files (~1200 questions), four evaluation tiers.
+- **Actual:** 8 training files (~1600 questions) after adding logical deduction
+  at seven objects and sports understanding; LogiQA added as an
+  evaluation-only tier alongside GSM8K.
+- **Reason:** the training set was small in absolute terms, and breadth was
+  raised by the supervisor. Breadth is added to EVALUATION rather than to
+  training, deliberately: anything added to training is lost as a test, and
+  the question at issue is generalisation. GSM8K and LogiQA pull in different
+  directions, arithmetic and argumentative respectively, so the pair bounds
+  where the effect holds.
+- **Effect on claims:** strengthens the generalisation claim. Training remains
+  a single distribution, which keeps the experimental design clean.
+- **Note:** the 8 training files are 6 distinct task types, since logical
+  deduction appears at three sizes. Stated openly rather than counted as 8.

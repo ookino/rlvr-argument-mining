@@ -5,16 +5,21 @@ which are held back entirely, and what fraction of items is reserved. The
 item-level split is computed here, deterministically from the seed in that
 file, so the exact question lists are reproducible without committing the data.
 
-FOUR TIERS, AT INCREASING DISTANCE FROM TRAINING
+FIVE TIERS, AT INCREASING DISTANCE FROM TRAINING
 ------------------------------------------------
     train      80% of items from the training families
-    held_out   the other 20%, SAME families      -> new questions, familiar reasoning
-    transfer   entirely unseen families          -> new reasoning, same benchmark
-    gsm8k      a different benchmark             -> never seen at all
+    held_out   the other 20%, SAME families   -> new questions, familiar reasoning
+    transfer   entirely unseen BBH families   -> new reasoning, same benchmark
+    logiqa     logical reading comprehension  -> new benchmark, argument-shaped
+    gsm8k      grade-school maths             -> new benchmark, arithmetic
 
-Reporting all four is what turns "does it generalise?" from a question into a
-table. The gap between held_out and transfer is the interesting one: it
-separates learning the questions from learning to reason.
+Only `train` is ever trained on. Reporting all five turns "does it generalise?"
+from a question into a table, and the shape of the decline across tiers says
+more than any single number.
+
+Two gaps carry most of the meaning. held_out to transfer separates learning the
+questions from learning to reason. transfer to logiqa/gsm8k separates
+within-benchmark generality from the real thing.
 """
 
 from __future__ import annotations
@@ -42,6 +47,7 @@ class Splits:
     held_out: list[Item] = field(default_factory=list)
     transfer: list[Item] = field(default_factory=list)
     gsm8k: list[Item] = field(default_factory=list)
+    logiqa: list[Item] = field(default_factory=list)
 
     def summary(self) -> dict[str, int]:
         return {
@@ -49,6 +55,7 @@ class Splits:
             "held_out": len(self.held_out),
             "transfer": len(self.transfer),
             "gsm8k": len(self.gsm8k),
+            "logiqa": len(self.logiqa),
         }
 
 
@@ -77,7 +84,7 @@ def _split_items(items: list[Item], fraction: float, seed: int) -> tuple[list[It
 
 def load_splits(
     path: Path | str = SPLITS_PATH,
-    include_gsm8k: bool = True,
+    include_external: bool = True,
 ) -> Splits:
     """Materialise all four tiers from Hugging Face."""
     from datasets import load_dataset
@@ -125,21 +132,91 @@ def load_splits(
     for family in spec["transfer_families"]:
         splits.transfer.extend(load_family(family))
 
-    if include_gsm8k:
-        cfg = spec["external_eval"]["gsm8k"]
-        data = load_dataset(cfg["dataset"], cfg["config"], split=cfg["split"])
-        indices = list(range(len(data)))
-        random.Random(cfg["sample_seed"]).shuffle(indices)
-        for i in indices[: cfg["n_items"]]:
-            row = data[i]
-            # GSM8K answers end with "#### <number>".
-            answer = row["answer"].split("####")[-1].strip()
-            splits.gsm8k.append(
-                Item(id=f"gsm8k::{i}", family="gsm8k", question=row["question"], answer=answer)
-            )
+    if include_external:
+        ext = spec["external_eval"]
+        splits.gsm8k = _load_gsm8k(ext["gsm8k"])
+        splits.logiqa = _load_logiqa(ext["logiqa"])
 
     _sanity_check(splits, declared)
     return splits
+
+
+def _sample_indices(n_rows: int, n_items: int, seed: int) -> list[int]:
+    indices = list(range(n_rows))
+    random.Random(seed).shuffle(indices)
+    return indices[:n_items]
+
+
+def _load_gsm8k(cfg: dict) -> list[Item]:
+    """Grade-school maths. Answers end with '#### <number>'."""
+    from datasets import load_dataset
+
+    data = load_dataset(cfg["dataset"], cfg["config"], split=cfg["split"])
+    items = []
+    for i in _sample_indices(len(data), cfg["n_items"], cfg["sample_seed"]):
+        row = data[i]
+        items.append(
+            Item(
+                id=f"gsm8k::{i}",
+                family="gsm8k",
+                question=row["question"],
+                answer=row["answer"].split(cfg["answer_marker"])[-1].strip(),
+            )
+        )
+    return items
+
+
+def _load_logiqa(cfg: dict) -> list[Item]:
+    """Logical reading comprehension, multiple choice.
+
+    Several LogiQA mirrors exist on Hugging Face with different field names,
+    so this probes for the ones it knows and reports what it actually found
+    rather than guessing and producing silently malformed questions.
+    """
+    from datasets import load_dataset
+
+    args = [cfg["dataset"]] + ([cfg["config"]] if cfg.get("config") else [])
+    try:
+        data = load_dataset(*args, split=cfg["split"])
+    except Exception as exc:
+        raise ValueError(
+            f"Could not load LogiQA from {cfg['dataset']!r}. Try an alternative "
+            f"mirror and update docs/splits.json. Underlying error: {exc}"
+        ) from exc
+
+    fields = set(data.column_names)
+    layouts = [
+        ("context", "query", "options", "correct_option"),
+        ("context", "question", "options", "label"),
+        ("premise", "question", "answers", "label"),
+    ]
+    layout = next((l for l in layouts if set(l[:3]) <= fields), None)
+    if layout is None:
+        raise ValueError(
+            f"LogiQA loaded but its fields are unrecognised: {sorted(fields)}. "
+            f"Expected one of {layouts}. Add the correct layout to _load_logiqa."
+        )
+    ctx_f, q_f, opt_f, ans_f = layout
+
+    items = []
+    for i in _sample_indices(len(data), cfg["n_items"], cfg["sample_seed"]):
+        row = data[i]
+        options = row[opt_f]
+        lettered = "\n".join(
+            f"({chr(65 + k)}) {opt}" for k, opt in enumerate(options)
+        )
+        answer_idx = row[ans_f]
+        if isinstance(answer_idx, str) and answer_idx.isdigit():
+            answer_idx = int(answer_idx)
+        items.append(
+            Item(
+                id=f"logiqa::{i}",
+                family="logiqa",
+                question=f"{row[ctx_f]}\n\n{row[q_f]}\n{lettered}",
+                answer=chr(65 + int(answer_idx)) if isinstance(answer_idx, int) else str(answer_idx),
+            )
+        )
+    return items
 
 
 def _sanity_check(splits: Splits, declared: set[str]) -> None:
@@ -148,7 +225,8 @@ def _sanity_check(splits: Splits, declared: set[str]) -> None:
         raise ValueError("training split is empty")
 
     train_ids = {it.id for it in splits.train}
-    for name, tier in (("held_out", splits.held_out), ("transfer", splits.transfer)):
+    for name, tier in (("held_out", splits.held_out), ("transfer", splits.transfer),
+                       ("gsm8k", splits.gsm8k), ("logiqa", splits.logiqa)):
         overlap = train_ids & {it.id for it in tier}
         if overlap:
             raise ValueError(

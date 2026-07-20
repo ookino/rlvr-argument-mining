@@ -20,13 +20,23 @@
   "split_seed": 13,
   "held_out_fraction": 0.2,
 
+  "_note_on_counting": [
+    "BBH is described in the paper as 23 tasks but ships as 27 files, because",
+    "logical_deduction and tracking_shuffled_objects each come in three size",
+    "variants. Counts below are FILES. The 8 training files are 6 distinct",
+    "task types, since logical deduction appears at three sizes.",
+    "Roughly 250 questions per file, about 6,500 in total across BBH."
+  ],
+
   "train_families": [
     "formal_fallacies",
     "logical_deduction_three_objects",
     "logical_deduction_five_objects",
+    "logical_deduction_seven_objects",
     "web_of_lies",
     "disambiguation_qa",
-    "navigate"
+    "navigate",
+    "sports_understanding"
   ],
 
   "transfer_families": [
@@ -60,25 +70,42 @@
       ]
     },
     "weak_or_redundant": {
-      "reason": "Minimal inferential chain (single judgement or lookup), or near-duplicate of a training family.",
+      "reason": "Minimal inferential chain: a single judgement, a lookup, or a rule application rather than a chain of reasoning.",
       "families": [
         "hyperbaton",
         "movie_recommendation",
-        "salient_translation_error_detection",
-        "sports_understanding",
-        "logical_deduction_seven_objects"
+        "salient_translation_error_detection"
       ]
     }
   },
 
   "external_eval": {
-    "_comment": "Evaluation only. Never trained on. Answers the cross-benchmark generalisation question rather than the within-benchmark one.",
+    "_comment": [
+      "Evaluation only, never trained on. These answer the cross-benchmark",
+      "generalisation question rather than the within-benchmark one. Two sets",
+      "chosen to pull in different directions: GSM8K is arithmetic reasoning,",
+      "as far from argumentation as the project goes, and LogiQA is logical",
+      "reading comprehension, where argument structure is the subject matter.",
+      "If the effect holds on both, the claim is about reasoning. If it holds",
+      "only on LogiQA, the claim is narrower and that boundary is the finding."
+    ],
     "gsm8k": {
       "dataset": "gsm8k",
       "config": "main",
       "split": "test",
       "n_items": 250,
-      "sample_seed": 13
+      "sample_seed": 13,
+      "answer_field": "answer",
+      "answer_marker": "####",
+      "note": "1319 problems in the test split; we sample 250."
+    },
+    "logiqa": {
+      "dataset": "lucasmccabe/logiqa",
+      "config": null,
+      "split": "test",
+      "n_items": 250,
+      "sample_seed": 13,
+      "VERIFY": "Dataset path and field names are UNVERIFIED. Confirm on first load: several LogiQA mirrors exist with different field names (context/query/options/correct_option vs premise/question/answers/label). data.py fails loudly rather than guessing."
     }
   }
 }
