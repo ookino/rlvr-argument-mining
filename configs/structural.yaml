@@ -1,0 +1,32 @@
+# E1 STRUCTURAL: correctness plus the argument-structure score. The thesis.
+run_id: e1_structural
+condition: structural
+seed: 1
+
+model: unsloth/Qwen2.5-3B-Instruct
+load_in_4bit: true
+lora: {r: 16, alpha: 32, dropout: 0.05}
+
+grpo:
+  num_generations: 8
+  learning_rate: 1.0e-5
+  max_steps: 400
+  max_completion_length: 1024
+  kl_coef: 0.04
+
+reward:
+  lambda_: 0.5
+  use_structure: true
+  use_conflict: true
+  use_restatement: true
+
+ari:
+  # THE THROUGHPUT DIAL. null compares every step to every other (quadratic,
+  # sees long-range links); 2 compares neighbours only (linear, cannot).
+  # Set from the week 1 Saturday measurement, not from guesswork.
+  window: null
+  batch_size: 64
+
+data:
+  splits: docs/splits.json
+out: results/{run_id}

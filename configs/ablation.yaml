@@ -1,0 +1,39 @@
+# E2 ABLATION: support structure only, with contradiction and restatement
+# switched off.
+#
+# WHAT THIS TESTS, AND WHY IT MATTERS MORE THAN IT LOOKS
+# ------------------------------------------------------
+# If the structural run beats the baseline, the obvious objection is "you just
+# gave the model a denser scoring signal, and any dense signal helps." This run
+# is the answer: same density, less argument-specific content. If the full
+# reward beats this one, the argument structure is doing the work. If they tie,
+# it was only density, and saying so honestly is worth more marks than
+# claiming otherwise.
+run_id: e2_ablation
+condition: ablation
+seed: 1
+
+model: unsloth/Qwen2.5-3B-Instruct
+load_in_4bit: true
+lora: {r: 16, alpha: 32, dropout: 0.05}
+
+grpo:
+  num_generations: 8
+  learning_rate: 1.0e-5
+  max_steps: 400
+  max_completion_length: 1024
+  kl_coef: 0.04
+
+reward:
+  lambda_: 0.5
+  use_structure: true
+  use_conflict: false
+  use_restatement: false
+
+ari:
+  window: null
+  batch_size: 64
+
+data:
+  splits: docs/splits.json
+out: results/{run_id}

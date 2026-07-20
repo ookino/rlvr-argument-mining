@@ -1,0 +1,25 @@
+# Colab installs these. A laptop only needs the bottom block to run the tests
+# and develop the scoring logic, because torch is imported lazily.
+
+# --- training stack (Colab / GPU only) ---
+# Pin this whole block from `pip freeze` the day the warm-up run works.
+# These versions must be mutually compatible; never upgrade one alone.
+unsloth
+trl
+transformers
+peft
+bitsandbytes
+accelerate
+torch
+datasets
+
+# --- scoring and analysis (works anywhere) ---
+networkx
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+pyyaml
+tqdm
+pytest

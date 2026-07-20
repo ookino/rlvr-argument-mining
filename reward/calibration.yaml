@@ -1,0 +1,25 @@
+# FROZEN CALIBRATION. Written by calibrate.py at the end of week 2, then
+# committed and not touched again. Any later change is a deviation log entry.
+#
+# Nulls here are deliberate: the scorer refuses to run until they are filled
+# in from the correlation study. Do not set them by hand.
+
+weights:
+  support_density: null
+  attachment: null
+  connectivity: null
+  support_depth: null
+  conflict_rate: null
+  restatement_rate: null
+
+# 75th percentile of baseline trace length, in tokens.
+length_target: null
+
+# Traces shorter than this cannot have structure worth scoring.
+min_steps: 3
+
+# Provenance, filled in by calibrate.py so the numbers above are traceable.
+source_corpus: null
+n_traces: null
+generated: null
+commit: null

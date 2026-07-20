@@ -1,0 +1,33 @@
+# What gets committed from results/
+#
+# Commit anything small and derived that a figure or a number in the write-up
+# depends on. Never commit raw traces or model checkpoints: they are large and
+# regenerable, and they are referenced by run ID in docs/run_log.md instead.
+#
+# COMMITTED   results/**/*.csv          summary tables, screens, the headline
+#             results/**/summary.json   per-run metrics
+# IGNORED     results/**/*.jsonl         traces and relations (large)
+#             results/**/checkpoints/    model adapters
+
+results/**/*.jsonl
+results/**/checkpoints/
+!results/**/summary.json
+
+# Environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# API keys
+.env
+*.key
+
+# OS
+.DS_Store
+
+# Training run spool
+wandb/
+outputs/

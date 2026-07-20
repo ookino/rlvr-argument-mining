@@ -1,0 +1,25 @@
+# E0 BASELINE: correctness only. The comparison everything is measured against.
+run_id: e0_baseline
+condition: baseline
+seed: 1
+
+model: unsloth/Qwen2.5-3B-Instruct     # 7B only as a stretch goal, see runbook
+load_in_4bit: true
+lora: {r: 16, alpha: 32, dropout: 0.05}
+
+grpo:
+  num_generations: 8          # attempts per question; the group it compares
+  learning_rate: 1.0e-5
+  max_steps: 400
+  max_completion_length: 1024
+  kl_coef: 0.04
+
+reward:
+  lambda_: 0.0                # no structural term at all
+  use_structure: false
+
+ari:
+  window: null                # irrelevant here; no structure scored
+data:
+  splits: docs/splits.json
+out: results/{run_id}
