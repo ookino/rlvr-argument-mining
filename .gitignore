@@ -25,6 +25,14 @@ __pycache__/
 .env
 *.key
 
+# Private working files: on disk and used locally, never tracked, so they
+# cannot reach the submission zip (which is built from tracked files only).
+SCRATCHPAD.md
+docs/learning/
+
+# The built submission archive itself
+submission-*.zip
+
 # OS
 .DS_Store
 
