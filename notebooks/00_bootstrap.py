@@ -4,7 +4,7 @@
 
 import os, subprocess, sys
 
-REPO = "https://github.com/YOURNAME/rlvr-argument-mining.git"   # <-- set this
+REPO = "https://github.com/ookino/rlvr-argument-mining.git"
 NAME = REPO.rstrip("/").split("/")[-1].replace(".git", "")
 
 if not os.path.exists(NAME):
