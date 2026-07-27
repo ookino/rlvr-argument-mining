@@ -15,6 +15,13 @@ How to run it from a notebook cell:
     run("configs/baseline.yaml", max_steps=5)
 """
 
+import os
+
+# Turn off torch.compile. Unsloth's GRPO trainer tries to compile part of the
+# training step and it crashes on this model. Running it plain (eager) is
+# slower but it works. This must be set before unsloth is imported.
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+
 import random
 
 import yaml
@@ -54,7 +61,10 @@ def fake_reward(prompts, completions, **kwargs):
     return [random.random() for _ in completions]
 
 
-def run(config_path, max_steps=5, num_generations=None):
+def run(config_path, max_steps=5, num_generations=None, beta=0.0):
+    # beta is the KL penalty strength. We set it to 0 for the smoke test, which
+    # skips the reference-model step (that step is where the compile crash
+    # happened). Real training will turn KL back on once the loop is proven.
     # unsloth and trl are imported inside the function, not at the top, so this
     # file can still be imported on a laptop with no GPU. They only load when
     # you actually train.
@@ -90,6 +100,7 @@ def run(config_path, max_steps=5, num_generations=None):
         learning_rate=g["learning_rate"],
         max_steps=max_steps,
         max_completion_length=g["max_completion_length"],
+        beta=beta,
         logging_steps=1,
     )
 
