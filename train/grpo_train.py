@@ -65,6 +65,16 @@ def run(config_path, max_steps=5, num_generations=None, beta=0.0, max_completion
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     from peft import LoraConfig
+
+    # TRL eagerly loads an optional model-merging helper called mergekit. On
+    # this runtime mergekit is half-installed: TRL believes it is available but
+    # importing it fails. We do not use model merging, so we tell TRL it is not
+    # available before importing the trainer. That makes TRL skip the broken
+    # import. This is done here in code so it works on any runtime, whatever
+    # leftover packages are lying around.
+    import trl.import_utils as _trl_import_utils
+    _trl_import_utils.is_mergekit_available = lambda: False
+
     from trl import GRPOConfig, GRPOTrainer
 
     cfg = load_config(config_path)
