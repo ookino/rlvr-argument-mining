@@ -75,6 +75,14 @@ LABEL_TO_RELATION = {
     "Rephrase": "MA",
 }
 
+# The model has a fourth class: it can decide a pair is simply unrelated.
+# Confirmed on the real checkpoint (its id2label includes "No-Relation").
+# A pair can therefore end up with no link in two distinct ways, and we count
+# them separately because the difference matters for the parser-characterisation
+# study (RQ1): "the model saw no relation" is not the same as "the model saw a
+# relation but was not confident enough".
+NO_RELATION_LABELS = {"No-Relation", "NoRelation", "None", "no-relation"}
+
 
 @dataclass
 class Relation:
@@ -90,7 +98,8 @@ class Relation:
 class RelationResult:
     relations: list[Relation] = field(default_factory=list)
     n_pairs_scored: int = 0
-    n_below_threshold: int = 0     # pairs the model was not confident enough about
+    n_below_threshold: int = 0       # model guessed a relation, but below its floor
+    n_model_no_relation: int = 0     # model actively said "these are unrelated"
 
 
 class ARI:
@@ -125,15 +134,17 @@ class ARI:
         self.id2label = self.model.config.id2label
         logger.info("Model labels: %s", self.id2label)
 
-        # Sanity check worth having: if the checkpoint ever changes, or if it
-        # turns out to carry a fourth "no relation" class, we want a loud
-        # signal rather than silently mis-mapping labels.
-        unknown = set(self.id2label.values()) - set(THRESHOLDS)
+        # Sanity check: warn only about labels we neither score nor recognise
+        # as a "no relation" class. The model's own No-Relation label is
+        # expected and handled, so it should not trigger this. A genuinely
+        # unknown label would mean the checkpoint changed and THRESHOLDS needs
+        # updating.
+        recognised = set(THRESHOLDS) | NO_RELATION_LABELS
+        unknown = set(self.id2label.values()) - recognised
         if unknown:
             logger.warning(
-                "Model exposes labels with no threshold defined: %s. These are "
-                "treated as 'no relation'. If one of them is a genuine relation "
-                "type, THRESHOLDS needs updating.",
+                "Model exposes unrecognised labels %s. Treated as 'no relation'. "
+                "If one is a genuine relation type, THRESHOLDS needs updating.",
                 sorted(unknown),
             )
 
@@ -229,10 +240,15 @@ class ARI:
 
         result = RelationResult(n_pairs_scored=len(index_pairs))
         for (i, j), (label, confidence) in zip(index_pairs, predictions):
-            floor = THRESHOLDS.get(label)
+            # Case 1: the model actively judged the pair unrelated.
+            if label in NO_RELATION_LABELS:
+                result.n_model_no_relation += 1
+                continue
+            # Case 2: the model guessed a relation but fell short of its floor.
             # Strictly greater, matching the published module's `> 0.9` rather
             # than `>= 0.9`. Immaterial in practice, but there is no reason to
             # differ from the reference implementation.
+            floor = THRESHOLDS.get(label)
             if floor is None or confidence <= floor:
                 result.n_below_threshold += 1
                 continue
