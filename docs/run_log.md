@@ -23,5 +23,43 @@ entry here.
 
 ---
 
-*No runs yet. The repo scaffold was built 2026-07-20; the first entry will be
-the oAMF spike (see docs/oamf_spike.md).*
+### setup-checks  2026-07-27
+- **What:** first run of the relation model (ARI) on a Colab L4 GPU, notebook
+  `notebooks/01_setup_checks.ipynb`. Purpose was to close the three unknowns in
+  the scoring pipeline before building on it.
+- **Host:** Colab (L4 GPU), repo public for frictionless clone.
+- **Model:** raruidol/ArgumentMining-EN-ARI-AIF-RoBERTa_L, loaded direct from
+  Hugging Face, `running on: cuda`.
+
+- **Q1, relation classes:** FOUR, not three.
+  `{0: No-Relation, 1: Inference, 2: Conflict, 3: Rephrase}`. The model can
+  itself judge a pair unrelated, on top of our confidence thresholds. Code now
+  counts "model said no relation" separately from "model guessed a relation but
+  below its confidence floor" (n_model_no_relation vs n_below_threshold), a
+  useful distinction for the parser-characterisation study (RQ1).
+
+- **Q2, arrow direction:** the model returns support edges pointing
+  conclusion -> premise (raven example gave 2->0, 2->1). This is the essay
+  convention (claim first, support after). Chain of thought is the reverse
+  shape, so we orient our support edges premise -> conclusion (earlier ->
+  later). Documented as a concrete instance of the essay-to-CoT domain shift
+  (RQ1). Fixed in reward/ari.py; verified the raven premises now point into
+  the conclusion.
+
+- **Q2b, open question parked:** on the raven trace the conclusion heuristic
+  picked the bare answer line ("The answer is black") rather than the true
+  argumentative conclusion ("therefore every bird is black"), leaving the
+  chosen conclusion node disconnected. Not fixed on a synthetic example; to be
+  resolved from real BBH traces at the corpus stage (E0/E1).
+
+- **Q3, throughput:** on the L4, ~600 pairs/sec all-pairs, ~460 pairs/sec
+  neighbours-only (overhead-dominated on small inputs, so a conservative
+  floor). Projected ~40 min of scoring per training run at all-pairs, ~15-20%
+  overhead on a 3-5 h run: affordable. Decision: keep all-pairs (window: null)
+  to retain long-range link detection. Neighbours-only remains the pre-planned
+  fallback. Real figure to be recorded when training runs.
+
+---
+
+*First training entry will follow once the loop runs with a placeholder reward
+(step 2).*
