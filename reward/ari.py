@@ -252,13 +252,23 @@ class ARI:
             if floor is None or confidence <= floor:
                 result.n_below_threshold += 1
                 continue
-            # Direction follows the published module: the SECOND member of the
-            # pair is the source, the first is the target. Verify this against
-            # a hand-built example before trusting any path-based feature.
+            # Direction: earlier step supports later step (premise -> conclusion).
+            #
+            # The published module stores the reverse (later -> earlier), a
+            # convention inherited from argument mining on ESSAYS, where the
+            # claim is stated first and its support follows. A chain of thought
+            # is the opposite shape: premises first, conclusion last. So for
+            # reasoning traces we orient support edges earlier -> later, which
+            # is what features.py and its tests assume. Verified on the raven
+            # example: two premises (steps 0, 1) both support the conclusion
+            # (step 2), giving edges 0->2 and 1->2.
+            #
+            # This inversion is itself a concrete instance of the essay-to-CoT
+            # domain shift the project studies (RQ1), and is documented as such.
             result.relations.append(
                 Relation(
-                    source=j,
-                    target=i,
+                    source=i,
+                    target=j,
                     kind=LABEL_TO_RELATION[label],
                     confidence=confidence,
                 )
