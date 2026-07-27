@@ -14,8 +14,10 @@ if os.path.basename(os.getcwd()) != NAME:
         subprocess.run(["git", "clone", REPO], check=True)
     os.chdir(NAME)
 
-# Always pull the latest code so the runtime is never stale.
-subprocess.run(["git", "pull", "--quiet"], check=False)
+# Force the code to match the remote. Running a notebook writes outputs back
+# into the .ipynb, which blocks a normal pull, so we reset instead.
+subprocess.run(["git", "fetch", "--quiet"], check=False)
+subprocess.run(["git", "reset", "--hard", "origin/main"], check=False)
 
 sys.path.insert(0, os.getcwd())
 subprocess.run([sys.executable, "-m", "pip", "install", "-q",
