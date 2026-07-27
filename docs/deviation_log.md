@@ -80,3 +80,21 @@ log as maturity, and a silent omission as a gap.
   a single distribution, which keeps the experimental design clean.
 - **Note:** the 8 training files are 6 distinct task types, since logical
   deduction appears at three sizes. Stated openly rather than counted as 8.
+
+### D-007  2026-07-27  Training uses plain TRL, not Unsloth
+- **Planned:** train with Unsloth (4-bit QLoRA plus fast GRPO), per the code
+  index and requirements.
+- **Actual:** train with plain TRL (transformers + peft + bitsandbytes for the
+  4-bit QLoRA, TRL's GRPOTrainer for the loop). Unsloth is not imported.
+- **Reason:** the installed Unsloth (2026.7.5, with trl 0.24 and transformers
+  5.5) crashes inside its own compiled GRPO trainer: an off-by-one in the
+  log-prob step (index [257,1] vs [256,vocab]). It fails under torch.compile
+  and also in eager mode, so it is a real bug in that version, not a config
+  error. Guessing at an older compatible Unsloth version means repeated
+  reinstall-and-restart cycles with no guarantee.
+- **Effect on claims:** none on the science. The training algorithm (GRPO),
+  model (Qwen 2.5 3B), and 4-bit QLoRA setup are unchanged; only the library
+  wrapper differs. The one practical cost is generation speed, which Unsloth
+  would have accelerated. For real training that speed is recovered with vLLM
+  (use_vllm in TRL's GRPOConfig), which is independent of Unsloth. To be
+  revisited when moving from the smoke test to real runs.

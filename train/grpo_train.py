@@ -7,20 +7,18 @@ ones. If all the answers for a question get the same score, that question
 teaches the model nothing.
 
 Step 2 runs this with a FAKE reward (just a random number). The only goal is to
-check that the whole training loop runs on Colab without crashing. The real
-argument structure reward is added later.
+check the whole training loop runs without crashing. The real argument structure
+reward is added later.
+
+We use plain TRL here, not Unsloth. Unsloth is a speed add-on, but its current
+version has a bug in its GRPO trainer (an off-by-one in the log-prob step). TRL
+is the standard library underneath and it works. For real training we get the
+speed back with vLLM, which plugs into TRL. See docs/deviation_log.md D-007.
 
 How to run it from a notebook cell:
     from train.grpo_train import run
     run("configs/baseline.yaml", max_steps=5)
 """
-
-import os
-
-# Turn off torch.compile. Unsloth's GRPO trainer tries to compile part of the
-# training step and it crashes on this model. Running it plain (eager) is
-# slower but it works. This must be set before unsloth is imported.
-os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
 
 import random
 
@@ -61,34 +59,43 @@ def fake_reward(prompts, completions, **kwargs):
     return [random.random() for _ in completions]
 
 
-def run(config_path, max_steps=5, num_generations=None, beta=0.0):
-    # beta is the KL penalty strength. We set it to 0 for the smoke test, which
-    # skips the reference-model step (that step is where the compile crash
-    # happened). Real training will turn KL back on once the loop is proven.
-    # unsloth and trl are imported inside the function, not at the top, so this
-    # file can still be imported on a laptop with no GPU. They only load when
-    # you actually train.
-    from unsloth import FastLanguageModel
+def run(config_path, max_steps=5, num_generations=None, beta=0.0, max_completion=128):
+    # Imported inside the function so this file still imports on a laptop with
+    # no GPU. The heavy libraries only load when you actually train.
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    from peft import LoraConfig
     from trl import GRPOConfig, GRPOTrainer
 
     cfg = load_config(config_path)
     g = cfg["grpo"]
     n_gen = num_generations or g["num_generations"]
 
+    tokenizer = AutoTokenizer.from_pretrained(cfg["model"])
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     # Load the model in 4-bit so it fits on a small GPU.
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=cfg["model"],
-        max_seq_length=1024,
-        load_in_4bit=cfg.get("load_in_4bit", True),
+    bnb = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        cfg["model"],
+        quantization_config=bnb,
+        device_map="auto",
     )
 
-    # Add the small trainable adapters (LoRA). We only train these, not the
-    # whole model, which is what makes it cheap.
-    model = FastLanguageModel.get_peft_model(
-        model,
+    # The small trainable adapters (LoRA). We only train these, which is what
+    # makes it cheap. TRL applies them to the 4-bit model for us.
+    lora = LoraConfig(
         r=cfg["lora"]["r"],
         lora_alpha=cfg["lora"]["alpha"],
         lora_dropout=cfg["lora"]["dropout"],
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                        "gate_proj", "up_proj", "down_proj"],
+        task_type="CAUSAL_LM",
     )
 
     data = dummy_dataset()
@@ -99,8 +106,9 @@ def run(config_path, max_steps=5, num_generations=None, beta=0.0):
         per_device_train_batch_size=n_gen,
         learning_rate=g["learning_rate"],
         max_steps=max_steps,
-        max_completion_length=g["max_completion_length"],
-        beta=beta,
+        max_completion_length=max_completion,
+        beta=beta,               # 0 for the smoke test: skips the KL step
+        bf16=True,
         logging_steps=1,
     )
 
@@ -110,6 +118,7 @@ def run(config_path, max_steps=5, num_generations=None, beta=0.0):
         reward_funcs=fake_reward,
         args=args,
         train_dataset=data,
+        peft_config=lora,
     )
     trainer.train()
     print("training loop finished without crashing")
