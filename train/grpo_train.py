@@ -77,6 +77,17 @@ def run(config_path, max_steps=5, num_generations=None, beta=0.0, max_completion
 
     from trl import GRPOConfig, GRPOTrainer
 
+    # A GPU is required. Give a clear message instead of a cryptic one later.
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "No GPU found in this session. In Colab: Runtime > Change runtime "
+            "type > GPU (L4), then run the notebook from the top. Training a 3B "
+            "model on CPU is not practical."
+        )
+    # bf16 is nicer but only newer GPUs support it (L4 yes, T4 no). Pick what
+    # the attached GPU can do.
+    use_bf16 = torch.cuda.is_bf16_supported()
+
     cfg = load_config(config_path)
     g = cfg["grpo"]
     n_gen = num_generations or g["num_generations"]
@@ -118,7 +129,8 @@ def run(config_path, max_steps=5, num_generations=None, beta=0.0, max_completion
         max_steps=max_steps,
         max_completion_length=max_completion,
         beta=beta,               # 0 for the smoke test: skips the KL step
-        bf16=True,
+        bf16=use_bf16,
+        fp16=not use_bf16,
         logging_steps=1,
     )
 
