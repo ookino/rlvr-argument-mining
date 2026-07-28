@@ -3,7 +3,7 @@ run_id: e1_structural
 condition: structural
 seed: 1
 
-model: unsloth/Qwen2.5-3B-Instruct
+model: Qwen/Qwen2.5-3B-Instruct
 load_in_4bit: true
 lora: {r: 16, alpha: 32, dropout: 0.05}
 

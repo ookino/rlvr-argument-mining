@@ -3,7 +3,7 @@ run_id: e0_baseline
 condition: baseline
 seed: 1
 
-model: unsloth/Qwen2.5-3B-Instruct     # 7B only as a stretch goal, see runbook
+model: Qwen/Qwen2.5-3B-Instruct     # 7B only as a stretch goal, see runbook
 load_in_4bit: true
 lora: {r: 16, alpha: 32, dropout: 0.05}
 
