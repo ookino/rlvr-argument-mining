@@ -31,18 +31,22 @@ MODEL = "Qwen/Qwen2.5-3B-Instruct"
 
 def build_prompt(question):
     # Ask for step by step reasoning and a fixed final line, so we can read the
-    # answer back out with a simple rule.
+    # answer back out with a simple rule. We are strict about the last line
+    # because the model kept ending with things like "the argument is valid"
+    # instead, which is hard to parse.
     return (
-        "Answer the question. Think step by step, one step per line. "
-        "Then finish with a line that says exactly 'The answer is X'.\n\n"
+        "Answer the question. Think step by step, one step per line.\n"
+        "Your very last line must be exactly: The answer is X\n"
+        "where X is only the final answer (a word, letter, or number), "
+        "nothing else.\n\n"
         "Question: " + question
     )
 
 
 def normalise(text):
-    # Lowercase, strip spaces and brackets and full stops, so "(A)" and "a."
-    # and "A" all compare equal.
-    return re.sub(r"[()\[\].,]", "", text.strip().lower()).strip()
+    # Lowercase and strip brackets, punctuation, and markdown, so "(A)", "a.",
+    # and "**A**" all compare equal.
+    return re.sub(r"[*#`()\[\].,:]", "", text.strip().lower()).strip()
 
 
 def is_correct(predicted, gold):
@@ -51,8 +55,13 @@ def is_correct(predicted, gold):
     p, g = normalise(predicted), normalise(gold)
     if not p or not g:
         return False
-    # Exact match, or one contains the other (handles "yes" vs "the answer is yes").
-    return p == g or g in p or p in g
+    if p == g:
+        return True
+    # The gold answer must appear as a WHOLE WORD in the prediction. This is the
+    # important fix: plain substring matching counted "valid" as correct when
+    # the answer was "invalid", because "valid" sits inside "invalid". A word
+    # boundary stops that.
+    return re.search(rf"\b{re.escape(g)}\b", p) is not None
 
 
 def load_generator(model_name=MODEL):
@@ -114,12 +123,20 @@ def generate(
     window=None,
     max_new_tokens=512,
 ):
+    import random
+
     from reward.ari import ARI
 
-    # Real training questions, in a fixed order so this is reproducible.
+    # Real training questions. Shuffle first (fixed seed, so it is reproducible)
+    # so the sample is spread across all the training families. Without this,
+    # taking the first N gives questions from only the first family.
     splits = load_splits(include_external=False)
-    questions = splits.train[:n_questions]
-    print(f"scoring {len(questions)} questions from the training split")
+    questions = list(splits.train)
+    random.Random(13).shuffle(questions)
+    questions = questions[:n_questions]
+
+    families = sorted({q.family for q in questions})
+    print(f"scoring {len(questions)} questions across {len(families)} families")
 
     model, tokenizer = load_generator()
     ari = ARI()
@@ -167,3 +184,35 @@ def summarise(out="results/E0/corpus.jsonl"):
         vals = [r[feat] for r in rows if feat in r]
         if vals:
             print(f"mean {feat:18s} {sum(vals)/len(vals):.3f}")
+
+    # Per family: we want a spread, and enough wrong answers in each to study.
+    from collections import defaultdict
+    fam = defaultdict(lambda: [0, 0])
+    for r in rows:
+        fam[r["family"]][0] += 1
+        fam[r["family"]][1] += bool(r.get("correct"))
+    print("\nby family:")
+    for f, (fn, fc) in sorted(fam.items()):
+        print(f"  {f:34s} {fc:3d}/{fn:<3d} correct ({100*fc//max(fn,1):2d}%)")
+
+
+def inspect(out="results/E0/corpus.jsonl", only="all", n=5):
+    # Print a few full traces so we can eyeball whether the correctness labels
+    # are trustworthy. only can be "all", "correct", "wrong", or "extract_fail".
+    from utils import read_jsonl
+
+    rows = list(read_jsonl(out))
+    shown = 0
+    for r in rows:
+        if only == "correct" and not r["correct"]:
+            continue
+        if only == "wrong" and r["correct"]:
+            continue
+        if only == "extract_fail" and r["extract_ok"]:
+            continue
+        print(f"\n[{r['family']}]  gold={r['gold']!r}  answer={r['answer']!r}  "
+              f"correct={r['correct']}  extract_ok={r['extract_ok']}")
+        print("trace (last 300 chars):", r["trace"][-300:])
+        shown += 1
+        if shown >= n:
+            break

@@ -39,3 +39,6 @@ submission-*.zip
 # Training run spool
 wandb/
 outputs/
+
+# stray corpus files at repo root (real corpus lives on Drive / in results)
+*.jsonl
