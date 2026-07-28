@@ -61,5 +61,28 @@ entry here.
 
 ---
 
-*First training entry will follow once the loop runs with a placeholder reward
-(step 2).*
+### smoke-test (step 2)  2026-07-28
+- **What:** prove the GRPO training loop runs end to end before wiring in the
+  real reward. Fake (random) reward, 5 steps, toy questions, Qwen 2.5 3B in
+  4-bit on a Colab L4.
+- **Result:** PASS. Model loaded, adapters attached, 5 GRPO steps completed,
+  "training loop finished without crashing". Loss ~0 as expected (random
+  reward, KL off, so no learning signal; the goal was only that it runs).
+- **Getting here took several environment fixes, all logged as deviations or
+  notes:**
+  - Unsloth 2026.7.5 GRPO trainer crashes (torch.compile error, then an
+    off-by-one in eager). Switched to plain TRL (D-007).
+  - TRL eagerly imports a broken mergekit; force-disabled it before importing
+    the trainer.
+  - Running a notebook dirties its own .ipynb, which blocked git pull, so
+    fixes were not reaching the runtime. Setup cell now does
+    fetch + reset --hard.
+  - bf16 requires a GPU; added an explicit GPU check and bf16/fp16 auto-pick.
+- **Speed note:** generation runs in the plain (no-vLLM) path and is slow. Real
+  training will add vLLM for generation speed. Not a blocker for the smoke test.
+- **Next:** step 3, generate the E0 baseline corpus with real BBH questions and
+  score it with the real reward pipeline.
+
+---
+
+*Biggest project risk (does training run) is now cleared.*
