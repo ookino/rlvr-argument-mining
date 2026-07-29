@@ -142,5 +142,44 @@ entry here.
 
 ---
 
+### E2 correlation study (C1)  2026-07-29
+- **Question:** does argument structure predict answer correctness in the
+  untrained model? Analyses pre-registered in experiment_plan.md section E2.
+- **Data:** the E0 corpus, re-scored after the D-008 conclusion fix
+  (results/E0/corpus_rescored.jsonl). 276 traces used, 24 extraction failures
+  dropped. Full output in results/E0/e2_correlation.txt.
+- **Headline result: NO pooled signal.**
+  - Structure composite AUC = 0.48 (below 0.5, no better than chance).
+  - Length-only AUC = 0.55: trace length predicts correctness better than
+    structure does, and shorter traces are more likely correct.
+  - No single feature clears |point-biserial r| > 0.1 in the expected
+    direction pooled. Logistic regression with length and family controlled
+    finds no structure feature significant (all p > 0.4); length is the only
+    marginally significant predictor (p = 0.04).
+  - This is the null outcome the plan anticipated. It is ROBUST: it survived
+    fixing the conclusion-detection bug (D-008), so it is a real absence of
+    pooled signal, not an artefact of noisy measures.
+- **The finding is the per-family heterogeneity, and the D-008 fix sharpened
+  it.** In chain-structured tasks all four support measures correlate
+  positively with correctness as hypothesised:
+  - web_of_lies: density +0.34, attachment +0.28, connectivity +0.24, depth +0.32
+  - navigate: density +0.28, attachment +0.31, connectivity +0.19, depth +0.20
+  - sports_understanding: weak positive across the board
+  In other tasks the effect is flat or reversed (logical_deduction_5 negative,
+  disambiguation flat). Pooling averages these opposite effects to zero.
+- **Interpretation (for the discussion chapter):** structure predicts
+  correctness where the task itself is a reasoning chain (navigate, web of
+  lies); it does not where the model produces structured-looking but
+  unsound reasoning (logical deduction). A task-dependent, honest finding.
+- **Consequence for the reward:** pooled, no feature earns a data-driven
+  weight. Per the pre-registered plan, C3 is reframed: test whether REWARDING
+  structure creates useful structure and helps, rather than assuming the base
+  model already exploits it. Weights decision (uniform vs per-family-informed)
+  to be taken with the supervisor.
+- **Next:** supervisor discussion with the per-family table, then set weights
+  and proceed to E4 training.
+
+---
+
 *Biggest project risk (does training run) is now cleared. E0 corpus in
 progress; correlation study (E2) is next.*

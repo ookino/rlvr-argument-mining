@@ -1,0 +1,52 @@
+corpus: 300 traces, dropped 24 extraction failures, 276 used
+correct: 165/276 (60%)
+
+=== 1. point-biserial correlation with correctness (pooled) ===
+feature                  r        p  expected sign
+support_density     -0.068    0.262  +
+attachment          -0.059    0.333  +
+connectivity        +0.004    0.942  +
+support_depth       -0.030    0.617  +
+conflict_rate       -0.095    0.116  -
+restatement_rate    +0.001    0.988  -
+length              -0.119    0.049  
+
+=== per family (point-biserial r, n) ===
+family                             support_ attachme connecti support_ conflict restatem
+disambiguation_qa                     -0.12    -0.11    +0.02    -0.05    +0.17    -0.00  (n=43)
+formal_fallacies                      +0.06    -0.01    +0.04    +0.06    -0.44    +0.11  (n=30)
+logical_deduction_five_objects        -0.21    -0.20    +0.00    -0.16    +0.46    +0.20  (n=22)
+logical_deduction_seven_objects       +0.02    +0.02    +0.17    -0.01    -0.46    -0.28  (n=30)
+logical_deduction_three_objects       +0.08    +0.20    -0.07    -0.00    +0.03    +0.12  (n=44)
+navigate                              +0.28    +0.31    +0.19    +0.20    +0.12    +0.06  (n=37)
+sports_understanding                  +0.11    +0.08    +0.10    +0.12    -0.21    -0.08  (n=41)
+web_of_lies                           +0.34    +0.28    +0.24    +0.32    +0.10    -0.35  (n=29)
+
+=== 2. logistic regression: correct ~ features + length + family ===
+  (coefficient, p-value; only features + length shown)
+    support_density    coef  +0.016   p 0.989
+    attachment         coef  +0.592   p 0.692
+    connectivity       coef  -0.148   p 0.862
+    support_depth      coef  +0.178   p 0.814
+    conflict_rate      coef  -0.604   p 0.455
+    restatement_rate   coef  +0.338   p 0.572
+    length             coef  -0.005   p 0.039
+
+=== 3. AUC (higher = better predictor of correctness) ===
+  structure composite : 0.482
+  length only         : 0.551
+  (0.5 = no better than a coin flip)
+
+=== 4. verdict (pre-registered thresholds) ===
+  composite AUC = 0.482  ->  NO predictive signal: reframe C3 as testing whether optimisation CREATES structure the base model does not exploit.
+  NOTE: length alone predicts better than structure. The length confound is doing the work, not argument structure.
+
+=== 5. proposed calibration ===
+  NO feature clears |r|>0.1 in the right direction. All weights would be 0, i.e. the structure reward has no empirical basis from this corpus. This is the null outcome the plan anticipated.
+    support_density    0.0
+    attachment         0.0
+    connectivity       0.0
+    support_depth      0.0
+    conflict_rate      0.0
+    restatement_rate   0.0
+  length_target (p75 of trace word count) = 226
