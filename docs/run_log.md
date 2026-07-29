@@ -85,4 +85,48 @@ entry here.
 
 ---
 
-*Biggest project risk (does training run) is now cleared.*
+### E0 baseline corpus  2026-07-28 to 2026-07-29
+- **What:** generate a chain-of-thought trace per training question with the
+  untrained base model (Qwen 2.5 3B Instruct), check correctness, and score
+  each trace with the argument pipeline. Input to the correlation study (E2).
+- **Host:** Colab (T4/L4 GPU). Corpus saved to Google Drive so it survives a
+  new runtime; generation is resumable (skips items already done).
+- **Scale:** 300 traces, sampled across all 8 training families.
+
+- **Data-quality issues found by manually inspecting real traces, each fixed
+  before the corpus was trusted:**
+  1. Correctness used substring matching, so "valid" matched inside "invalid"
+     and opposite answers counted as correct. Inflated correctness to a fake
+     86%. Fixed to whole-word matching (true value ~48% on that family).
+  2. Sampling took the first N questions, all from one family. Fixed by
+     shuffling with a fixed seed before sampling.
+  3. A regeneration appended to the old file instead of replacing it, mixing
+     old and new data. Fixed with an explicit wipe and a generate(fresh=True)
+     option.
+  4. The base model answers in each task's own vocabulary ("plausible" not
+     "yes", "T" not "Yes"), which were marked wrong. web_of_lies came out at
+     6%, below the ~50% of random guessing on a binary task, which flagged a
+     labelling problem rather than difficulty. Fixed by stating the expected
+     answer format per family in the prompt and accepting synonyms.
+
+- **Method note for the write-up:** correctness labels were validated by manual
+  inspection of sampled traces at each stage; four labelling/sampling issues
+  were identified and corrected before use.
+
+- **Result:** FINAL CLEAN NUMBERS PENDING the post-fix regeneration. The last
+  pre-fix run gave 38% correct overall with a healthy per-family spread
+  (6-58%); re-labelling with the synonym fix lifted the two low families
+  (sports 17->39%, web_of_lies 6->30%) and the prompt fix is expected to lift
+  them further once regenerated. Update this entry with the final table.
+
+- **Structure feature means (pre-fix run, for reference):** support_density
+  0.66, attachment 0.58, connectivity 0.30, support_depth 0.38, conflict 0.02,
+  restatement 0.19. Non-degenerate and sensible; the pipeline produces real
+  structure on chain-of-thought traces.
+
+- **Next:** E2 correlation study once the clean corpus is confirmed.
+
+---
+
+*Biggest project risk (does training run) is now cleared. E0 corpus in
+progress; correlation study (E2) is next.*
