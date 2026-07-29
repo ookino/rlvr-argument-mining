@@ -1,21 +1,12 @@
 """
-Train the model with GRPO.
+GRPO training loop.
 
-GRPO is the training method. For each question the model writes several answers,
-each answer gets a score, and the model is pushed towards the higher scoring
-ones. If all the answers for a question get the same score, that question
-teaches the model nothing.
+For now this runs with a FAKE (random) reward - just checking the loop runs
+before wiring in the real reward.
 
-Step 2 runs this with a FAKE reward (just a random number). The only goal is to
-check the whole training loop runs without crashing. The real argument structure
-reward is added later.
+Plain TRL, not Unsloth: Unsloth's GRPO crashed on our setup (D-007). Speed comes
+back later with vLLM.
 
-We use plain TRL here, not Unsloth. Unsloth is a speed add-on, but its current
-version has a bug in its GRPO trainer (an off-by-one in the log-prob step). TRL
-is the standard library underneath and it works. For real training we get the
-speed back with vLLM, which plugs into TRL. See docs/deviation_log.md D-007.
-
-How to run it from a notebook cell:
     from train.grpo_train import run
     run("configs/baseline.yaml", max_steps=5)
 """

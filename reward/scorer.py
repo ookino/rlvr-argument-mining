@@ -1,28 +1,13 @@
-"""Turning the six measurements into the single number training uses.
+"""Combine the six measures into the reward number.
 
-READ THIS BEFORE CHANGING ANYTHING HERE
----------------------------------------
-This file is the scientific core of the project. In a viva you will be asked
-to justify every line of it. Nothing in here should be a number you cannot
-explain the origin of.
+Two things I'm being strict about:
+- the weights come from the correlation study, not picked by hand (picking them
+  and then reporting an improvement would be circular). the code refuses to run
+  if they're not set.
+- the length target is the 75th percentile of the base model's own trace length,
+  not a made-up constant.
 
-Two rules the design follows:
-
-1. WEIGHTS COME FROM THE CORRELATION STUDY, NOT FROM TASTE.
-   You measure which features actually predict correct answers, and weight
-   them accordingly. Features that predict nothing get weight zero. Setting
-   these by hand and then reporting an improvement is the exact thing that
-   makes a result unpublishable, so the code refuses to run without them.
-
-2. THRESHOLDS ARE PERCENTILES OF THE UNTRAINED MODEL'S OWN OUTPUT.
-   The length target is not "about 300 tokens", it is "the 75th percentile of
-   what the base model produced before training". That way it is calibrated to
-   the actual distribution rather than guessed, and you can say so in the
-   method chapter.
-
-Both come from calibrate.py, which writes reward/calibration.yaml. That file
-is frozen and committed at the end of week 2; changing it afterwards is a
-deviation log entry.
+Both are written by calibrate.py into calibration.yaml.
 """
 
 from __future__ import annotations
@@ -40,7 +25,7 @@ CALIBRATION_PATH = Path(__file__).parent / "calibration.yaml"
 @dataclass
 class Calibration:
     weights: dict[str, float]
-    length_target: float          # 75th percentile of baseline trace length
+    length_target: float          # 75th pct of base-model trace length
     min_steps: int = 3
 
     @classmethod
@@ -52,15 +37,11 @@ class Calibration:
         unset = sorted(k for k, v in weights.items() if v is None)
         if unset or not weights:
             raise ValueError(
-                f"Feature weights {unset or '(none defined)'} are not set. "
-                "Run calibrate.py on the baseline corpus first: weights come "
-                "from the correlation study, never by hand. See scorer.py."
+                f"weights {unset or '(none)'} not set - run calibrate.py first, "
+                "weights come from the correlation study not by hand"
             )
         if data.get("length_target") is None:
-            raise ValueError(
-                "length_target is not set. It is the 75th percentile of "
-                "baseline trace length, emitted by calibrate.py."
-            )
+            raise ValueError("length_target not set (calibrate.py writes it)")
         return cls(
             weights=weights,
             length_target=float(data["length_target"]),
@@ -69,12 +50,8 @@ class Calibration:
 
 
 def length_penalty(n_tokens: int, target: float) -> float:
-    """Stops the model padding its way to a better score.
-
-    Every measurement is a fraction, so writing more text tends to create more
-    links and inflate the graph. This multiplies the score down once a trace
-    runs past the target length, so verbosity stops paying.
-    """
+    # writing more text makes more links, so cap it: past the target length the
+    # score gets shrunk so rambling doesn't pay
     if n_tokens <= target:
         return 1.0
     return target / n_tokens
@@ -87,18 +64,11 @@ def structural_score(
     use_conflict: bool = True,
     use_restatement: bool = True,
 ) -> float:
-    """The structural part of the reward, in [0, 1].
-
-    `use_conflict` and `use_restatement` exist for the ablation run: switching
-    both off leaves support structure alone, which is what tests whether the
-    benefit comes from argument structure specifically or from any dense
-    scoring signal at all.
-    """
+    # use_conflict / use_restatement off = the ablation run (support only), to
+    # check whether it's the argument content or just any dense signal helping
     values = features.as_dict()
 
-    # Restatement and conflict are penalties, not rewards. Restating a step to
-    # inflate the graph should cost, and a trace contradicting itself should
-    # cost. Both are flipped so that more of them means a lower score.
+    # conflict and restatement are penalties - flip them so more = lower score
     values["restatement_rate"] = 1.0 - values["restatement_rate"]
     values["conflict_rate"] = 1.0 - values["conflict_rate"]
 
@@ -125,12 +95,8 @@ def total_reward(
     use_structure: bool = True,
     **ablation,
 ) -> float:
-    """What the training loop actually receives.
-
-    Baseline condition: lambda_ = 0, so only correctness matters. This is the
-    comparison everything else is measured against.
-    Structural condition: correctness plus a weighted structural score.
-    """
+    # lambda_=0 -> correctness only (the baseline). otherwise correctness plus
+    # the weighted structure score.
     reward = 1.0 if correct else 0.0
     if use_structure and lambda_:
         reward += lambda_ * structural_score(features, n_tokens, calibration, **ablation)

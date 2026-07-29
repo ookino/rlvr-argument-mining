@@ -1,18 +1,7 @@
 """
-Make the baseline trace corpus (experiment E0).
+Build the E0 corpus: for each question, let the base model reason, check if
+it's right, and score its argument structure. One line per question.
 
-For each training question we do four things:
-  1. ask the base model to reason step by step and give an answer
-  2. check if the answer is correct
-  3. score the reasoning with the argument pipeline (split into steps, find the
-     relations between them, measure the resulting graph)
-  4. save everything to one file, one line per question
-
-This is done with the untrained base model, so it tells us how the model
-reasons before any training. It is the input to the correlation study: do the
-argument scores line up with getting the answer right?
-
-Run it from a notebook:
     from e0_corpus import generate
     generate(n_questions=200)
 """

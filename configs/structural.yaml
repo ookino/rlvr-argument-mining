@@ -21,9 +21,7 @@ reward:
   use_restatement: true
 
 ari:
-  # THE THROUGHPUT DIAL. null compares every step to every other (quadratic,
-  # sees long-range links); 2 compares neighbours only (linear, cannot).
-  # Set from the week 1 Saturday measurement, not from guesswork.
+  # null = all pairs (slower, sees long-range links), 2 = neighbours only
   window: null
   batch_size: 64
 

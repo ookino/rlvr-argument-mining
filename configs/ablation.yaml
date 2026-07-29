@@ -1,14 +1,5 @@
-# E2 ABLATION: support structure only, with contradiction and restatement
-# switched off.
-#
-# WHAT THIS TESTS, AND WHY IT MATTERS MORE THAN IT LOOKS
-# ------------------------------------------------------
-# If the structural run beats the baseline, the obvious objection is "you just
-# gave the model a denser scoring signal, and any dense signal helps." This run
-# is the answer: same density, less argument-specific content. If the full
-# reward beats this one, the argument structure is doing the work. If they tie,
-# it was only density, and saying so honestly is worth more marks than
-# claiming otherwise.
+# ablation: support structure only (conflict + restatement off). checks whether
+# it's the argument content helping or just any dense reward.
 run_id: e2_ablation
 condition: ablation
 seed: 1

@@ -1,25 +1,12 @@
-"""Loading the frozen data splits.
+"""Load the data splits (declared in docs/splits.json).
 
-The split is declared in docs/splits.json: which task families are trained on,
-which are held back entirely, and what fraction of items is reserved. The
-item-level split is computed here, deterministically from the seed in that
-file, so the exact question lists are reproducible without committing the data.
-
-FIVE TIERS, AT INCREASING DISTANCE FROM TRAINING
-------------------------------------------------
-    train      80% of items from the training families
-    held_out   the other 20%, SAME families   -> new questions, familiar reasoning
-    transfer   entirely unseen BBH families   -> new reasoning, same benchmark
-    logiqa     logical reading comprehension  -> new benchmark, argument-shaped
-    gsm8k      grade-school maths             -> new benchmark, arithmetic
-
-Only `train` is ever trained on. Reporting all five turns "does it generalise?"
-from a question into a table, and the shape of the decline across tiers says
-more than any single number.
-
-Two gaps carry most of the meaning. held_out to transfer separates learning the
-questions from learning to reason. transfer to logiqa/gsm8k separates
-within-benchmark generality from the real thing.
+Five tiers, each further from training. Only `train` is trained on; the rest
+test generalisation.
+    train      80% of the training families
+    held_out   the other 20% (same families)
+    transfer   unseen BBH families
+    logiqa     different benchmark (logic comprehension)
+    gsm8k      different benchmark (maths)
 """
 
 from __future__ import annotations

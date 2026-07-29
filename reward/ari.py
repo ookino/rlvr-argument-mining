@@ -1,45 +1,13 @@
-"""Argument Relation Identification.
+"""ARI - the argument relation model (Ramon's model). We don't train this one.
 
-Takes a list of reasoning steps and works out which ones support, contradict,
-or restate which others. This is the one model in the project we do not train.
+Give it two statements, it says one of: Inference (A supports B -> RA),
+Conflict (A contradicts B -> CA), Rephrase (A restates B -> MA), or nothing.
 
-WHAT THIS IS, IN PLAIN TERMS
-----------------------------
-The model is a text classifier. You hand it two sentences and it answers with
-one of three labels plus a confidence:
+We load the checkpoint directly instead of the oAMF web service, because that
+needs Docker and Colab doesn't have it. Same model, same thresholds. (D-002)
 
-    Inference -> A supports B      (stored as an "RA" link)
-    Conflict  -> A contradicts B   (stored as a "CA" link)
-    Rephrase  -> A restates B      (stored as an "MA" link)
-
-If the confidence is too low, we record no link at all.
-
-WHY WE DO NOT USE THE oAMF WEB SERVICE
---------------------------------------
-The published module (arg-tech/AMF_ARI) wraps this same model in a Flask app
-in a Docker container. Running that locally requires Docker, which Google
-Colab does not provide. But the model itself is a public Hugging Face
-checkpoint, so we load it directly. Same weights, same thresholds, same
-pairing logic, no container and no network call in the training loop.
-
-Logged in docs/deviation_log.md as D-002.
-
-THE COST MODEL, WHICH IS THE THING TO UNDERSTAND
-------------------------------------------------
-The model scores PAIRS of steps, one forward pass each. So the cost of one
-trace depends on how many pairs you make from it:
-
-    window = None  ->  every step against every other:  n*(n-1)/2 pairs
-    window = 2     ->  neighbours only:                 n-1 pairs
-
-For a 15-step trace that is 105 pairs versus 14. For a 30-step trace, 435
-versus 29. This single setting dominates the training-time budget, which is
-why it is a config value and not a constant.
-
-All-pairs sees long-range links (a step supporting the conclusion from five
-steps earlier), which is exactly what the path-to-conclusion and chain-depth
-features are meant to measure. Neighbours-only cannot see them. Measure both
-before choosing; do not pick on vibes.
+Cost: it scores PAIRS of steps. window=None does every pair (n*(n-1)/2),
+window=k only neighbours (n-1). That one setting drives the training cost.
 """
 
 from __future__ import annotations
@@ -48,49 +16,37 @@ import itertools
 import logging
 from dataclasses import dataclass, field
 
-# torch and transformers are imported inside the methods that need them, not
-# here. That keeps the pairing logic, the features, and the scorer importable
-# and testable on a laptop with no training stack installed, which is where
-# most of the development happens. Only ARI() itself needs the heavy imports.
+# torch/transformers are imported inside ARI() so the rest of the file (pairing,
+# features, scorer) still imports on a laptop with no GPU stack.
 
 logger = logging.getLogger(__name__)
 
 MODEL_ID = "raruidol/ArgumentMining-EN-ARI-AIF-RoBERTa_L"
 
-# Confidence floors, copied verbatim from the published module
-# (arg-tech/AMF_ARI, app/ari.py). Support is held to a stricter standard than
-# the other two. These are the tool's own numbers and we keep them: retuning a
-# supervisor's published thresholds invites the question "did you adjust this
-# until it worked?", which is not a question worth answering in a viva.
+# confidence floors, copied from the published module (support is stricter). we
+# don't retune these - they're Ramon's numbers.
 THRESHOLDS = {
     "Inference": 0.9,
     "Conflict": 0.7,
     "Rephrase": 0.7,
 }
 
-# Label as the classifier says it -> node type as AIF calls it.
 LABEL_TO_RELATION = {
     "Inference": "RA",
     "Conflict": "CA",
     "Rephrase": "MA",
 }
 
-# The model has a fourth class: it can decide a pair is simply unrelated.
-# Confirmed on the real checkpoint (its id2label includes "No-Relation").
-# A pair can therefore end up with no link in two distinct ways, and we count
-# them separately because the difference matters for the parser-characterisation
-# study (RQ1): "the model saw no relation" is not the same as "the model saw a
-# relation but was not confident enough".
+# the model has a 4th class: it can say a pair is just unrelated. we count that
+# separately from "guessed a relation but below the floor" - different things.
 NO_RELATION_LABELS = {"No-Relation", "NoRelation", "None", "no-relation"}
 
 
 @dataclass
 class Relation:
-    """One detected link between two steps."""
-
-    source: int          # index of the step doing the supporting/attacking
-    target: int          # index of the step being supported/attacked
-    kind: str            # RA, CA or MA
+    source: int          # step doing the supporting/attacking
+    target: int          # step being supported/attacked
+    kind: str            # RA / CA / MA
     confidence: float
 
 
@@ -98,20 +54,18 @@ class Relation:
 class RelationResult:
     relations: list[Relation] = field(default_factory=list)
     n_pairs_scored: int = 0
-    n_below_threshold: int = 0       # model guessed a relation, but below its floor
-    n_model_no_relation: int = 0     # model actively said "these are unrelated"
+    n_below_threshold: int = 0       # guessed a relation, below its floor
+    n_model_no_relation: int = 0     # said "these are unrelated"
 
 
 class ARI:
-    """Wraps the relation model. Load once, reuse for every trace."""
-
     def __init__(
         self,
         model_id: str = MODEL_ID,
         device: str | None = None,
         batch_size: int = 64,
         max_length: int = 256,
-        encoding: str = "concat",     # matches the published module; see _encode
+        encoding: str = "concat",     # matches the published module (see _encode)
     ):
         if encoding not in ("concat", "pair"):
             raise ValueError("encoding must be 'concat' or 'pair'")
@@ -126,42 +80,28 @@ class ARI:
         self.batch_size = batch_size
         self.max_length = max_length
 
-        logger.info("Loading %s onto %s", model_id, device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_id)
         self.model.to(device).eval()
 
         self.id2label = self.model.config.id2label
-        logger.info("Model labels: %s", self.id2label)
 
-        # Sanity check: warn only about labels we neither score nor recognise
-        # as a "no relation" class. The model's own No-Relation label is
-        # expected and handled, so it should not trigger this. A genuinely
-        # unknown label would mean the checkpoint changed and THRESHOLDS needs
-        # updating.
+        # warn if the checkpoint ever shows a label we don't know how to handle
         recognised = set(THRESHOLDS) | NO_RELATION_LABELS
         unknown = set(self.id2label.values()) - recognised
         if unknown:
-            logger.warning(
-                "Model exposes unrecognised labels %s. Treated as 'no relation'. "
-                "If one is a genuine relation type, THRESHOLDS needs updating.",
-                sorted(unknown),
-            )
+            logger.warning("unrecognised labels %s, treating as no-relation", sorted(unknown))
 
     @staticmethod
     def make_pairs(n_steps: int, window: int | None = None) -> list[tuple[int, int]]:
-        """Which step pairs to score. See the cost model in the module docstring.
-
-        window=None scores everything; window=k scores steps within k of each
-        other. Pairs are always ordered (earlier, later) and never duplicated,
-        which the published module's sliding-window loop does not guarantee.
-        """
+        # window=None = all pairs; window=k = each step vs the next k-1. always
+        # (earlier, later), no duplicates.
         if n_steps < 2:
             return []
         if window is None:
             return list(itertools.combinations(range(n_steps), 2))
         if window < 2:
-            raise ValueError("window must be at least 2, or None for all pairs")
+            raise ValueError("window must be >= 2, or None for all pairs")
         return [
             (i, j)
             for i in range(n_steps)
@@ -169,28 +109,9 @@ class ARI:
         ]
 
     def _encode(self, chunk: list[tuple[str, str]]):
-        """Turn sentence pairs into model input.
-
-        THIS DETAIL MATTERS MORE THAN IT LOOKS. There are two standard ways to
-        hand a model two sentences:
-
-          "concat"  glue them into one string:  "A. B"
-          "pair"    pass them as two arguments, so the tokenizer inserts a
-                    separator and marks them as separate segments
-
-        They tokenise differently and the model answers differently. The
-        published module (arg-tech/AMF_ARI, pipeline_predictions) uses CONCAT:
-
-            sample = data['text'][i] + '. ' + data['text2'][i]
-
-        so that is our default. The file also defines a `tokenize_sequence`
-        helper that does it the "pair" way, but never calls it, which suggests
-        that route was started and abandoned.
-
-        The option is kept so the two can be compared on a sample of traces.
-        If they disagree materially, that is worth a sentence in the write-up;
-        if they agree, that is a cheap validity check to have run.
-        """
+        # two ways to feed a sentence pair: glue them ("A. B") or pass as two
+        # args. the published module glues them, so that's the default. keeping
+        # the other as an option for a sanity check.
         if self.encoding == "concat":
             texts = [f"{a}. {b}" for a, b in chunk]
             return self.tokenizer(
@@ -210,7 +131,6 @@ class ARI:
         )
 
     def _classify(self, pairs: list[tuple[str, str]]) -> list[tuple[str, float]]:
-        """Run the model over sentence pairs, returning (label, confidence)."""
         import torch
 
         out: list[tuple[str, float]] = []
@@ -218,7 +138,6 @@ class ARI:
             for start in range(0, len(pairs), self.batch_size):
                 chunk = pairs[start : start + self.batch_size]
                 encoded = self._encode(chunk).to(self.device)
-
                 probs = self.model(**encoded).logits.softmax(dim=-1)
                 best = probs.argmax(dim=-1)
                 for row, idx in enumerate(best.tolist()):
@@ -226,11 +145,6 @@ class ARI:
         return out
 
     def identify(self, steps: list[str], window: int | None = None) -> RelationResult:
-        """Find the relations between a trace's reasoning steps.
-
-        `steps` is the trace already split into statements; we own that split
-        (see reward/xaif_build.py) rather than using an upstream segmenter.
-        """
         index_pairs = self.make_pairs(len(steps), window)
         if not index_pairs:
             return RelationResult()
@@ -240,31 +154,17 @@ class ARI:
 
         result = RelationResult(n_pairs_scored=len(index_pairs))
         for (i, j), (label, confidence) in zip(index_pairs, predictions):
-            # Case 1: the model actively judged the pair unrelated.
             if label in NO_RELATION_LABELS:
                 result.n_model_no_relation += 1
                 continue
-            # Case 2: the model guessed a relation but fell short of its floor.
-            # Strictly greater, matching the published module's `> 0.9` rather
-            # than `>= 0.9`. Immaterial in practice, but there is no reason to
-            # differ from the reference implementation.
             floor = THRESHOLDS.get(label)
             if floor is None or confidence <= floor:
                 result.n_below_threshold += 1
                 continue
-            # Direction: earlier step supports later step (premise -> conclusion).
-            #
-            # The published module stores the reverse (later -> earlier), a
-            # convention inherited from argument mining on ESSAYS, where the
-            # claim is stated first and its support follows. A chain of thought
-            # is the opposite shape: premises first, conclusion last. So for
-            # reasoning traces we orient support edges earlier -> later, which
-            # is what features.py and its tests assume. Verified on the raven
-            # example: two premises (steps 0, 1) both support the conclusion
-            # (step 2), giving edges 0->2 and 1->2.
-            #
-            # This inversion is itself a concrete instance of the essay-to-CoT
-            # domain shift the project studies (RQ1), and is documented as such.
+            # direction: earlier step -> later step (premise -> conclusion). the
+            # published module stores it the other way (essay convention, claim
+            # first). a chain of thought is premises-first, so we flip it. this
+            # flip is itself an essay-vs-CoT finding.
             result.relations.append(
                 Relation(
                     source=i,
@@ -277,11 +177,7 @@ class ARI:
 
 
 def estimate_pairs(step_counts: list[int], window: int | None = None) -> dict:
-    """Cost projection helper for the throughput measurement.
-
-    Feed it the step counts of a sample of real traces and it tells you how
-    many forward passes a training run would cost. Used in notebook 01.
-    """
+    # given trace step-counts, how many pairs a run would score. used in nb 01.
     per_trace = [len(ARI.make_pairs(n, window)) for n in step_counts]
     total = sum(per_trace)
     return {

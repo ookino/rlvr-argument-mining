@@ -1,11 +1,7 @@
-"""Crash-safe result writing.
+"""Crash-safe JSONL writing.
 
-Colab sessions die without warning. Pushing a thousand traces through the
-relation model will outlive at least one of them. These helpers mean a dead
-session costs you the item in flight and nothing else: rerun the same cell and
-it picks up where it stopped.
-
-Use it for anything that loops over items and takes more than a few minutes.
+Colab sessions die. These append one result at a time and skip what's already
+done, so a dead session costs one item and you just rerun the cell.
 """
 
 from __future__ import annotations
