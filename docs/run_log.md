@@ -193,5 +193,32 @@ entry here.
 
 ---
 
-*Biggest project risk (does training run) is now cleared. E0 corpus in
-progress; correlation study (E2) is next.*
+### RQ1 fidelity - annotation harness + pilot cross-check  2026-07-29
+- **What:** built the hand-annotation harness (`annotate_pilot.py`) that samples
+  traces, lays out every link ARI drew, and scores precision/recall against a
+  human's marks. This is the tool for the RQ1 fidelity study.
+- **Why:** every experiment so far TRUSTED ARI's links without checking them.
+  This is the first direct test of whether the links are correct.
+- **Pilot (preliminary, AI-assisted cross-check - NOT the human study):** 16
+  traces, 2 per family. Links marked by an automated second-annotator pass to
+  validate the harness end to end and get a first signal.
+  - precision ~0.38, recall ~0.77 over 232 links.
+  - reading: ARI OVER-GENERATES. ~6 in 10 links it draws are spurious (premises
+    linked to section headers, to "let's analyze" framing, to option-listings),
+    but it catches ~77% of the genuinely real links. It draws too many, not too
+    few.
+  - a segmentation contributor: section headers ("Price Comparisons") survive as
+    their own steps, and ARI draws links into them. Worth a fix or a note.
+  - per-family hint (tiny n): verbal reasoning reads best (sports ~0.61),
+    symbolic logic worst (formal_fallacies ~0.25), consistent with the C2
+    characterisation.
+- **Why it matters:** if a majority of links are spurious, the six structure
+  measures are noise-dominated - a mechanical explanation for the E2 null.
+  Connects RQ1 to RQ2.
+- **Next (the real study):** a human (the author) annotates ~40 traces with a
+  written protocol; these preliminary numbers are only a harness check.
+
+---
+
+*Biggest project risk (does training run) is now cleared. Diagnostic phase
+(E0 corpus, E2 null, RQ1 fidelity harness) done; training (E4) is next.*

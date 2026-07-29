@@ -42,3 +42,6 @@ outputs/
 
 # stray corpus files at repo root (real corpus lives on Drive / in results)
 *.jsonl
+
+# annotation working sheets (personal notes, incl. any AI cross-check copy)
+results/E0/annotation_sheet*.md
