@@ -98,3 +98,18 @@ log as maturity, and a silent omission as a gap.
   would have accelerated. For real training that speed is recovered with vLLM
   (use_vllm in TRL's GRPOConfig), which is independent of Unsloth. To be
   revisited when moving from the smoke test to real runs.
+
+### D-008  2026-07-29  Conclusion node = last reasoning step, not the answer line
+- **Planned:** the conclusion is the trace step matching the extracted answer.
+- **Actual:** trailing answer-announcement lines ("The answer is X") are dropped
+  from the steps, and the conclusion is the last remaining reasoning step. The
+  answer is still extracted separately from the raw text, so correctness is
+  unaffected.
+- **Reason:** on the E0 corpus, 93% of traces had the conclusion detected as the
+  bare answer line, and 39% had connectivity = 0 because the relation model
+  never links the reasoning to "The answer is No". So the two conclusion-based
+  measures (connectivity, support_depth) were measuring a disconnected node.
+- **Effect on claims:** corrects two of the six measures. The E2 correlation
+  study is re-run on the re-scored corpus before any conclusion is drawn about
+  whether structure predicts correctness. The corpus now also stores the raw
+  relations, so future feature changes can be tested without re-running ARI.

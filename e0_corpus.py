@@ -195,6 +195,8 @@ def generate(
             "correct": is_correct(answer, item.answer),
             "n_steps": trace.n_steps,
             "n_relations": len(relations.relations),
+            "conclusion_index": trace.conclusion_index,
+            "relations": _relations_to_dicts(relations),
             "trace": trace_text,
             **features.as_dict(),
         }
@@ -202,6 +204,46 @@ def generate(
     n_new = resumable(questions, out, work, id_fn=lambda it: it.id)
     print(f"done. {n_new} new traces written to {out}")
     summarise(out)
+
+
+def _relations_to_dicts(relations):
+    # Save the raw links so features can be recomputed later without re-running
+    # ARI. s=source step, t=target step, k=kind (RA/CA/MA), c=confidence.
+    return [{"s": r.source, "t": r.target, "k": r.kind, "c": round(r.confidence, 3)}
+            for r in relations.relations]
+
+
+def rescore(in_path="results/E0/corpus.jsonl",
+            out_path="results/E0/corpus_rescored.jsonl", window=None):
+    """Re-score an existing corpus with the CURRENT pipeline, without
+    regenerating the traces. Runs ARI on the stored trace text (fast: no model
+    generation) and recomputes the features. Use this after changing the
+    splitting, the conclusion detection, or the feature code. Saves the raw
+    relations too, so the NEXT change needs no ARI at all (see rescore_local)."""
+    from reward.ari import ARI
+    from utils import read_jsonl
+
+    ari = ARI()
+    rows = list(read_jsonl(in_path))
+    print(f"re-scoring {len(rows)} traces from {in_path}")
+
+    def work(row):
+        trace, relations, features = score_trace(ari, row["trace"], window)
+        keep = {k: row[k] for k in
+                ("id", "family", "gold", "answer", "extract_ok", "correct", "trace")
+                if k in row}
+        return {
+            **keep,
+            "n_steps": trace.n_steps,
+            "n_relations": len(relations.relations),
+            "conclusion_index": trace.conclusion_index,
+            "relations": _relations_to_dicts(relations),
+            **features.as_dict(),
+        }
+
+    n = resumable(rows, out_path, work, id_fn=lambda r: str(r["id"]))
+    print(f"done. {n} traces re-scored to {out_path}")
+    summarise(out_path)
 
 
 def summarise(out="results/E0/corpus.jsonl"):

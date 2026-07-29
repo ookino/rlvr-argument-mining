@@ -30,10 +30,10 @@ No published work occupies that combination. That is the contribution, and it is
 
 Two axes organise the nearest work. The first is **how structure enters the model**: by supervised training on structure-building as a task, or by reward during reinforcement learning. The second is **where the signal comes from**: a learned or judged score, or recovered symbolic structure.
 
-|  | Learned / judged signal | Recovered symbolic structure |
-|---|---|---|
-| **Supervised fine-tuning** | standard process supervision | Ryu et al. 2026; Li et al. 2026 |
-| **Reinforcement reward** | Rubrics as Rewards; Ziegenbein et al. 2026 | **this project** |
+|                            | Learned / judged signal                    | Recovered symbolic structure    |
+| -------------------------- | ------------------------------------------ | ------------------------------- |
+| **Supervised fine-tuning** | standard process supervision               | Ryu et al. 2026; Li et al. 2026 |
+| **Reinforcement reward**   | Rubrics as Rewards; Ziegenbein et al. 2026 | **this project**                |
 
 Ziegenbein et al. (2026) is the closest neighbour: reinforcement learning with a multi-component argument-quality reward. It differs on both axes that matter here, since their signal comes from trained classifiers and their task is argument editing rather than general reasoning.
 
@@ -45,22 +45,22 @@ Hypotheses are recorded now so that the analysis cannot be reverse-engineered fr
 
 **RQ1. Can argument structure be recovered from chain-of-thought traces with usable fidelity?**
 Argument mining models are trained on essays and debate transcripts. A reasoning trace is a different register: shorter steps, arithmetic, enumeration, no speakers. Whether the relation model behaves sensibly on it is an empirical question, not an assumption.
-*H1: the model produces connected, plausible structures for a majority of traces, with characterisable failure modes.*
+_H1: the model produces connected, plausible structures for a majority of traces, with characterisable failure modes._
 
 **RQ2. Does argumentative structure predict answer correctness before any training?**
 If well-structured reasoning is associated with correct answers in an untrained model, there is a signal worth optimising. If not, the premise of the reward is in doubt and must be reported as such.
-*H2: a positive but modest association; the individual measurements differ in how much they predict.*
+_H2: a positive but modest association; the individual measurements differ in how much they predict._
 
 **RQ3. Does adding the structural reward to outcome-based reinforcement learning improve held-out accuracy?**
-*H3: yes, a small to moderate improvement.*
+_H3: yes, a small to moderate improvement._
 
 **RQ4. Does any improvement come from argument structure specifically, or merely from the reward being denser?**
 This is the question that separates a result from an artefact, and it is why the ablation exists.
-*H4: the full structural reward outperforms the reduced one, indicating the content matters and not only the density.*
+_H4: the full structural reward outperforms the reduced one, indicating the content matters and not only the density._
 
 **RQ5. How does a model exploit a symbolic structural reward?**
 Because the reward is a diagram rather than a number from a black box, its exploits are legible. This question is answerable whatever RQ3 returns.
-*H5: exploitation concentrates on restatement and on inflating step count, both of which the design is intended to resist.*
+_H5: exploitation concentrates on restatement and on inflating step count, both of which the design is intended to resist._
 
 ---
 
@@ -106,11 +106,11 @@ This is a methodological improvement rather than a shortcut. Any structure measu
 
 The model is `raruidol/ArgumentMining-EN-ARI-AIF-RoBERTa_L`, the checkpoint behind the oAMF ARI module. It takes two statements and returns one of three labels with a confidence:
 
-| Label | Meaning | Stored as |
-|---|---|---|
-| Inference | the first supports the second | RA |
-| Conflict | the two contradict | CA |
-| Rephrase | the two restate each other | MA |
+| Label     | Meaning                       | Stored as |
+| --------- | ----------------------------- | --------- |
+| Inference | the first supports the second | RA        |
+| Conflict  | the two contradict            | CA        |
+| Rephrase  | the two restate each other    | MA        |
 
 Confidence floors are taken verbatim from the published module: 0.9 for Inference, 0.7 for Conflict and Rephrase. Pairs below the floor produce no link. **These thresholds are not tuned.** Adjusting a supervisor's published thresholds and then reporting an improvement would make the result impossible to defend.
 
@@ -122,10 +122,10 @@ The checkpoint is loaded directly rather than called as a web service, because t
 
 The relation model scores pairs, one forward pass each. The number of pairs depends on the window setting:
 
-| Setting | Pairs from n steps | n = 15 | n = 30 |
-|---|---|---|---|
-| all pairs | n(n−1)/2 | 105 | 435 |
-| neighbours only | n−1 | 14 | 29 |
+| Setting         | Pairs from n steps | n = 15 | n = 30 |
+| --------------- | ------------------ | ------ | ------ |
+| all pairs       | n(n−1)/2           | 105    | 435    |
+| neighbours only | n−1                | 14     | 29     |
 
 All-pairs can see a step that supports the conclusion from five steps earlier, which is precisely what the connectivity and chain-depth measurements are designed to detect. Neighbours-only cannot see it at any price.
 
@@ -133,16 +133,16 @@ All-pairs can see a step that supports the conclusion from five steps earlier, w
 
 ### 3.4 The six measurements
 
-All are fractions in [0,1]. Let *n* be the number of steps and *c* the conclusion.
+All are fractions in [0,1]. Let _n_ be the number of steps and _c_ the conclusion.
 
-| Name | What it measures | Why it is in the reward |
-|---|---|---|
-| `support_density` | support links relative to n−1 | how much of the trace does inferential work |
-| `attachment` | steps participating in any support link | detects floating assertions connected to nothing |
-| `connectivity` | steps with a support path to *c* | does the reasoning actually lead to the answer |
-| `support_depth` | longest support chain ending at *c*, capped at 5 | rewards chained inference over flat assertion lists |
-| `conflict_rate` | contradiction links relative to n−1 | detects self-contradiction within a trace |
-| `restatement_rate` | restatement links relative to n−1 | detects padding: the same point made twice |
+| Name               | What it measures                                 | Why it is in the reward                             |
+| ------------------ | ------------------------------------------------ | --------------------------------------------------- |
+| `support_density`  | support links relative to n−1                    | how much of the trace does inferential work         |
+| `attachment`       | steps participating in any support link          | detects floating assertions connected to nothing    |
+| `connectivity`     | steps with a support path to _c_                 | does the reasoning actually lead to the answer      |
+| `support_depth`    | longest support chain ending at _c_, capped at 5 | rewards chained inference over flat assertion lists |
+| `conflict_rate`    | contradiction links relative to n−1              | detects self-contradiction within a trace           |
+| `restatement_rate` | restatement links relative to n−1                | detects padding: the same point made twice          |
 
 The last two enter the reward inverted, since more of either is worse.
 
@@ -173,12 +173,12 @@ The length penalty exists because all six measurements are fractions, so produci
 
 ## 4. Experiments
 
-| ID | Name | Depends on | Answers | Output |
-|---|---|---|---|---|
-| E0 | Baseline trace corpus | pipeline | all | 800–1200 scored traces |
-| E1 | Correlation and characterisation | E0 | RQ1, RQ2 | association analysis, fidelity report, frozen weights |
-| E2 | Training comparison | E1 | RQ3, RQ4 | 3 conditions x 2 seeds |
-| E3 | Reward-hacking analysis | E2 | RQ5 | exploit taxonomy |
+| ID  | Name                             | Depends on | Answers  | Output                                                |
+| --- | -------------------------------- | ---------- | -------- | ----------------------------------------------------- |
+| E0  | Baseline trace corpus            | pipeline   | all      | 800–1200 scored traces                                |
+| E1  | Correlation and characterisation | E0         | RQ1, RQ2 | association analysis, fidelity report, frozen weights |
+| E2  | Training comparison              | E1         | RQ3, RQ4 | 3 conditions x 2 seeds                                |
+| E3  | Reward-hacking analysis          | E2         | RQ5      | exploit taxonomy                                      |
 
 ### E0. Baseline corpus
 
@@ -190,12 +190,12 @@ Answer extraction uses a forced final-answer format with a regular-expression fa
 
 Declared in `docs/splits.json`, frozen and committed before any model sees data, and fingerprinted so that the run log shows immediately if two runs were not comparable.
 
-| Tier | Content | What it measures |
-|---|---|---|
-| Train | 80% of items from 6 families | learning |
-| Held-out | the remaining 20%, **same families** | new questions, familiar reasoning |
-| Transfer | 4 **entirely unseen families** | new reasoning types, same benchmark |
-| GSM8K | a separate benchmark, 250 items | cross-benchmark generalisation |
+| Tier     | Content                              | What it measures                    |
+| -------- | ------------------------------------ | ----------------------------------- |
+| Train    | 80% of items from 6 families         | learning                            |
+| Held-out | the remaining 20%, **same families** | new questions, familiar reasoning   |
+| Transfer | 4 **entirely unseen families**       | new reasoning types, same benchmark |
+| GSM8K    | a separate benchmark, 250 items      | cross-benchmark generalisation      |
 
 Only the training tier is ever trained on. The item-level split is computed deterministically from a seed recorded in the split file, so exact question lists are reproducible without committing the data itself.
 
@@ -207,9 +207,9 @@ Only the training tier is ever trained on. The item-level split is computed dete
 
 **Exclusions** (17 families), each with a stated reason rather than a silent omission:
 
-- *Symbolic or mechanical* (9), including word sorting, arithmetic, object counting, Dyck languages and the shuffled-object tasks. Their reasoning is symbol manipulation, so an argument graph over such a trace is degenerate and scoring it would measure noise.
-- *Chain-of-thought underperforms* (3): causal judgement, ruin names, snarks. Suzgun et al. (2023) report chain-of-thought prompting at or below direct prompting on these. Including them would confound a reasoning-quality intervention with tasks where reasoning aloud actively hurts.
-- *Weak or redundant* (5): minimal inferential chain, or near-duplicates of a training family.
+- _Symbolic or mechanical_ (9), including word sorting, arithmetic, object counting, Dyck languages and the shuffled-object tasks. Their reasoning is symbol manipulation, so an argument graph over such a trace is degenerate and scoring it would measure noise.
+- _Chain-of-thought underperforms_ (3): causal judgement, ruin names, snarks. Suzgun et al. (2023) report chain-of-thought prompting at or below direct prompting on these. Including them would confound a reasoning-quality intervention with tasks where reasoning aloud actively hurts.
+- _Weak or redundant_ (5): minimal inferential chain, or near-duplicates of a training family.
 
 Excluding roughly two thirds of the benchmark is a substantial scoping decision and is presented as one. The alternative, training an argument-structure reward on word-sorting traces, would produce a measurement of nothing.
 
@@ -232,11 +232,11 @@ Cost is negligible: inference on finished checkpoints, no additional training.
 
 **Interpretation rules, fixed now:**
 
-| Composite AUC, length controlled | Reading | Action |
-|---|---|---|
-| > 0.60 | meaningful association | proceed as planned |
-| 0.55 – 0.60 | weak association | proceed, temper H3 |
-| < 0.55 | no predictive association | proceed, reframe E2 as testing whether optimisation *creates* structure the base model does not exploit |
+| Composite AUC, length controlled | Reading                   | Action                                                                                                  |
+| -------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| > 0.60                           | meaningful association    | proceed as planned                                                                                      |
+| 0.55 – 0.60                      | weak association          | proceed, temper H3                                                                                      |
+| < 0.55                           | no predictive association | proceed, reframe E2 as testing whether optimisation _creates_ structure the base model does not exploit |
 
 A null result here is a finding, not a failure, and the reframing is written before the number is seen precisely so that it cannot be motivated by the number.
 
@@ -246,11 +246,11 @@ A null result here is a finding, not a failure, and the reframing is written bef
 
 Three conditions, identical in data, steps, and every hyperparameter. Only the reward differs.
 
-| Condition | Reward | Seeds |
-|---|---|---|
-| Baseline | correctness only | 2 |
-| Structural | correctness + λ x structural | 2 |
-| Ablation | correctness + λ x structural, contradiction and restatement removed | 1 |
+| Condition  | Reward                                                              | Seeds |
+| ---------- | ------------------------------------------------------------------- | ----- |
+| Baseline   | correctness only                                                    | 2     |
+| Structural | correctness + λ x structural                                        | 2     |
+| Ablation   | correctness + λ x structural, contradiction and restatement removed | 1     |
 
 The ablation answers the objection that any denser reward would help. If the structural condition beats the baseline but ties with the ablation, the honest conclusion is that density helped and argument content is unproven. That conclusion is written here in advance so that it can be reported without reluctance.
 
@@ -270,7 +270,7 @@ The anticipated exploits, named in advance: restating steps to inflate the graph
 
 ## 5. Evaluation
 
-**Primary.** Exact-match accuracy across all four tiers: held-out items, transfer families, and GSM8K. Reported as a single table, since the *shape* of the decline across tiers is more informative than any one number. All of these are independent of the training signal, which avoids the circularity of evaluating a reward with itself.
+**Primary.** Exact-match accuracy across all four tiers: held-out items, transfer families, and GSM8K. Reported as a single table, since the _shape_ of the decline across tiers is more informative than any one number. All of these are independent of the training signal, which avoids the circularity of evaluating a reward with itself.
 
 **Secondary.** Logical-consistency rate on a HaluEval subset, off-the-shelf and inference-only.
 
@@ -284,13 +284,13 @@ The anticipated exploits, named in advance: restating steps to inflate the graph
 
 Each gate has a decision and a pre-planned response. Deciding early is project management; discovering late is a crisis.
 
-| Point | Gate | If it fails |
-|---|---|---|
+| Point         | Gate                                                       | If it fails                                                                                                                   |
+| ------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | End of Week 1 | training loop completes 50 steps with a placeholder reward | abandon the training experiment; submit E0 and E1 as a full study with a feasibility analysis. Still a complete dissertation. |
-| End of Week 1 | relation model verified against the published service | investigate before any corpus is generated |
-| End of Week 1 | pairing cost measured | adopt neighbours-only and state the limitation |
-| End of Week 2 | E1 written up, weights frozen | the insurance contribution is banked regardless of what follows |
-| End of Week 3 | all training runs complete | no new experiments after this point, without exception |
+| End of Week 1 | relation model verified against the published service      | investigate before any corpus is generated                                                                                    |
+| End of Week 1 | pairing cost measured                                      | adopt neighbours-only and state the limitation                                                                                |
+| End of Week 2 | E1 written up, weights frozen                              | the insurance contribution is banked regardless of what follows                                                               |
+| End of Week 3 | all training runs complete                                 | no new experiments after this point, without exception                                                                        |
 
 ---
 

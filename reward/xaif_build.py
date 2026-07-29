@@ -91,19 +91,37 @@ def split_steps(text: str) -> list[str]:
     return steps
 
 
+# Lines that just announce the answer rather than reason. These are not the
+# argumentative conclusion: the relation model never links the reasoning to
+# "The answer is No", so using such a line as the conclusion node made
+# connectivity and support_depth measure a disconnected node (it happened on
+# ~93% of traces in the E0 corpus). Recorded as D-008.
+_ANSWER_LINE = re.compile(
+    r"^\s*(so\s+|thus,?\s+|therefore,?\s+|hence,?\s+|in\s+conclusion,?\s+)?"
+    r"(the\s+)?(final\s+)?answer\s*(is|:)",
+    re.IGNORECASE,
+)
+
+
+def _is_answer_line(step: str) -> bool:
+    return bool(_ANSWER_LINE.match(step))
+
+
 def build_trace(text: str) -> Trace:
     """Full pipeline: raw model output to a Trace ready for scoring."""
     steps = split_steps(text)
     answer, _ = extract_answer(text)
 
-    conclusion_index = None
-    if answer and steps:
-        # The conclusion is normally the last step. Match on the answer text
-        # so a trailing "So the answer is B." is identified rather than assumed.
-        for idx in range(len(steps) - 1, -1, -1):
-            if answer.lower() in steps[idx].lower():
-                conclusion_index = idx
-                break
+    # Drop trailing answer-announcement lines ("The answer is X") from the
+    # steps. They are formatting, not reasoning, and the answer is extracted
+    # separately from the raw text, so nothing is lost. What remains is the
+    # actual argument, and its last step is the real conclusion. This is what
+    # lets connectivity and support_depth measure the reasoning instead of a
+    # disconnected answer line.
+    while steps and _is_answer_line(steps[-1]):
+        steps.pop()
+
+    conclusion_index = len(steps) - 1 if steps else None
 
     return Trace(
         steps=steps,

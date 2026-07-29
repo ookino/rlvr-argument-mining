@@ -77,14 +77,18 @@ def test_extract_answer_failure_is_flagged_not_guessed():
     assert matched is False
 
 
-def test_conclusion_is_located_in_the_steps():
+def test_conclusion_skips_the_answer_line():
+    # "The answer is B." is an announcement, not reasoning, so it is dropped
+    # from the steps and the conclusion is the real last reasoning step.
     trace = build_trace(
         "We start by ruling out option A here.\n"
         "That leaves us with only option B remaining.\n"
         "The answer is B."
     )
     assert trace.conclusion == "B"
-    assert trace.conclusion_index == 2
+    assert trace.n_steps == 2                       # answer line dropped
+    assert trace.conclusion_index == 1              # the real conclusion
+    assert "answer is" not in trace.steps[trace.conclusion_index].lower()
 
 
 # --- degenerate traces -------------------------------------------------------
@@ -109,20 +113,21 @@ def test_empty_trace_does_not_crash():
 
 
 def _chain_trace():
-    """Four steps in a clean supporting chain ending at the conclusion."""
+    """Three reasoning steps in a clean supporting chain, plus an answer line
+    that gets dropped. Premises 0 and 1 support the conclusion (step 2)."""
     trace = build_trace(
         "All birds in this garden are known to be ravens.\n"
         "Every raven that we have observed is black in colour.\n"
         "Therefore all the birds in this garden must be black.\n"
         "The answer is black."
     )
+    # After the answer line is dropped, steps are 0,1,2 and 2 is the conclusion.
     relations = RelationResult(
         relations=[
-            Relation(source=0, target=1, kind="RA", confidence=0.95),
+            Relation(source=0, target=2, kind="RA", confidence=0.95),
             Relation(source=1, target=2, kind="RA", confidence=0.95),
-            Relation(source=2, target=3, kind="RA", confidence=0.95),
         ],
-        n_pairs_scored=6,
+        n_pairs_scored=3,
     )
     return trace, relations
 
