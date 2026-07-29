@@ -29,18 +29,36 @@ from utils import resumable
 MODEL = "Qwen/Qwen2.5-3B-Instruct"
 
 
-def build_prompt(question):
-    # Ask for step by step reasoning and a fixed final line, so we can read the
-    # answer back out with a simple rule. We are strict about the last line
-    # because the model kept ending with things like "the argument is valid"
-    # instead, which is hard to parse.
-    return (
-        "Answer the question. Think step by step, one step per line.\n"
-        "Your very last line must be exactly: The answer is X\n"
-        "where X is only the final answer (a word, letter, or number), "
-        "nothing else.\n\n"
-        "Question: " + question
-    )
+# The expected answer format for each task family. Without this the model
+# answers in the task's own words ("plausible" instead of "yes", "T" instead of
+# "Yes"), which we then wrongly mark incorrect. Telling it the format up front
+# is standard practice for evaluating on these benchmarks.
+ANSWER_FORMATS = {
+    "web_of_lies": "Yes or No",
+    "sports_understanding": "yes or no",
+    "navigate": "Yes or No",
+    "formal_fallacies": "valid or invalid",
+    "disambiguation_qa": "the letter of the correct option, for example (A)",
+    "logical_deduction_three_objects": "the letter of the correct option, for example (A)",
+    "logical_deduction_five_objects": "the letter of the correct option, for example (A)",
+    "logical_deduction_seven_objects": "the letter of the correct option, for example (A)",
+}
+
+
+def build_prompt(question, family=None):
+    # Ask for step by step reasoning and, importantly, tell the model exactly
+    # what the final answer should look like for this task. No "X" placeholder:
+    # the small model took that literally and wrote "The answer is X".
+    lines = [
+        "Answer the question below. Think step by step, one step per line.",
+        "Then write your final answer on the last line, after the words "
+        "'The answer is'.",
+    ]
+    fmt = ANSWER_FORMATS.get(family)
+    if fmt:
+        lines.append(f"Your final answer must be {fmt}.")
+    lines += ["", "Question: " + question]
+    return "\n".join(lines)
 
 
 def normalise(text):
@@ -49,18 +67,32 @@ def normalise(text):
     return re.sub(r"[*#`()\[\].,:]", "", text.strip().lower()).strip()
 
 
+# Words that mean the same answer. The model says "plausible" or "true" when the
+# gold answer is "yes"; these map them together so we do not mark a right answer
+# wrong.
+_SYNONYMS = {
+    "plausible": "yes", "true": "yes", "t": "yes",
+    "implausible": "no", "false": "no", "f": "no",
+}
+
+
+def _canon(word):
+    return _SYNONYMS.get(word, word)
+
+
 def is_correct(predicted, gold):
     if predicted is None:
         return False
     p, g = normalise(predicted), normalise(gold)
     if not p or not g:
         return False
+    # Map synonyms so "plausible" counts as "yes", etc.
+    if _canon(p) == _canon(g):
+        return True
     if p == g:
         return True
-    # The gold answer must appear as a WHOLE WORD in the prediction. This is the
-    # important fix: plain substring matching counted "valid" as correct when
-    # the answer was "invalid", because "valid" sits inside "invalid". A word
-    # boundary stops that.
+    # The gold answer must appear as a WHOLE WORD in the prediction. This stops
+    # "valid" from matching inside "invalid".
     return re.search(rf"\b{re.escape(g)}\b", p) is not None
 
 
@@ -85,10 +117,11 @@ def load_generator(model_name=MODEL):
     return model, tokenizer
 
 
-def generate_trace(model, tokenizer, question, max_new_tokens=512, temperature=0.7):
+def generate_trace(model, tokenizer, question, family=None,
+                   max_new_tokens=512, temperature=0.7):
     import torch
 
-    messages = [{"role": "user", "content": build_prompt(question)}]
+    messages = [{"role": "user", "content": build_prompt(question, family)}]
     prompt_text = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, tokenize=False
     )
@@ -142,7 +175,8 @@ def generate(
     ari = ARI()
 
     def work(item):
-        trace_text = generate_trace(model, tokenizer, item.question, max_new_tokens)
+        trace_text = generate_trace(model, tokenizer, item.question,
+                                    item.family, max_new_tokens)
         answer, extracted = extract_answer(trace_text)
         trace, relations, features = score_trace(ari, trace_text, window)
         return {
