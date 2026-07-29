@@ -113,18 +113,32 @@ entry here.
   inspection of sampled traces at each stage; four labelling/sampling issues
   were identified and corrected before use.
 
-- **Result:** FINAL CLEAN NUMBERS PENDING the post-fix regeneration. The last
-  pre-fix run gave 38% correct overall with a healthy per-family spread
-  (6-58%); re-labelling with the synonym fix lifted the two low families
-  (sports 17->39%, web_of_lies 6->30%) and the prompt fix is expected to lift
-  them further once regenerated. Update this entry with the final table.
+- **Result (clean corpus, 2026-07-29, post-fix):** 300 traces, **167/300
+  correct (56%)**, 24 extraction failures. Balanced spread across families with
+  no below-chance outliers, confirming the labelling fixes worked:
 
-- **Structure feature means (pre-fix run, for reference):** support_density
-  0.66, attachment 0.58, connectivity 0.30, support_depth 0.38, conflict 0.02,
-  restatement 0.19. Non-degenerate and sensible; the pipeline produces real
-  structure on chain-of-thought traces.
+  | family | correct |
+  |---|---|
+  | disambiguation_qa | 19/43 (44%) |
+  | formal_fallacies | 20/41 (48%) |
+  | logical_deduction_five_objects | 10/23 (43%) |
+  | logical_deduction_seven_objects | 14/37 (37%) |
+  | logical_deduction_three_objects | 29/44 (65%) |
+  | navigate | 32/41 (78%) |
+  | sports_understanding | 26/41 (63%) |
+  | web_of_lies | 17/30 (56%) |
 
-- **Next:** E2 correlation study once the clean corpus is confirmed.
+  The two previously-broken families recovered: web_of_lies 6% -> 56%,
+  sports_understanding 17% -> 63%, after the answer-format prompt + synonym fix.
+  web_of_lies at 56% (a binary task) is at chance, as expected for this model.
+
+- **Structure feature means:** support_density 0.66, attachment 0.60,
+  connectivity 0.29, support_depth 0.34, conflict 0.06, restatement 0.20.
+  Non-degenerate and sensible. The relatively low connectivity is useful
+  variance for E2 (traces differ in how well they reach their conclusion) and
+  partly reflects the parked conclusion-detection question from setup-checks.
+
+- **Next:** E2 correlation study on this corpus.
 
 ---
 
