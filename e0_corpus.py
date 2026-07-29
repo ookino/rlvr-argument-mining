@@ -155,10 +155,17 @@ def generate(
     out="results/E0/corpus.jsonl",
     window=None,
     max_new_tokens=512,
+    fresh=False,
 ):
     import random
 
     from reward.ari import ARI
+
+    # fresh=True wipes the old file first, so a regeneration cannot silently
+    # skip everything as "already done". Use it whenever the code or the
+    # sampling changed and you want a clean corpus.
+    if fresh:
+        reset_corpus(out)
 
     # Real training questions. Shuffle first (fixed seed, so it is reproducible)
     # so the sample is spread across all the training families. Without this,
