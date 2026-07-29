@@ -196,14 +196,30 @@ def summarise(out="results/E0/corpus.jsonl"):
         print(f"  {f:34s} {fc:3d}/{fn:<3d} correct ({100*fc//max(fn,1):2d}%)")
 
 
-def inspect(out="results/E0/corpus.jsonl", only="all", n=5):
+def reset_corpus(out="results/E0/corpus.jsonl"):
+    # Delete the corpus file so a regeneration starts completely fresh. Run this
+    # before regenerating if the sampling or labelling has changed, otherwise
+    # the resumable writer keeps the old rows.
+    import os
+
+    if os.path.exists(out):
+        os.remove(out)
+        print("deleted old corpus:", out)
+    else:
+        print("no corpus to delete at", out)
+
+
+def inspect(out="results/E0/corpus.jsonl", only="all", family=None, n=5):
     # Print a few full traces so we can eyeball whether the correctness labels
     # are trustworthy. only can be "all", "correct", "wrong", or "extract_fail".
+    # family filters to one task family, e.g. "sports_understanding".
     from utils import read_jsonl
 
     rows = list(read_jsonl(out))
     shown = 0
     for r in rows:
+        if family and r["family"] != family:
+            continue
         if only == "correct" and not r["correct"]:
             continue
         if only == "wrong" and r["correct"]:
