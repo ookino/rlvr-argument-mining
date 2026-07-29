@@ -140,6 +140,18 @@ entry here.
 
 - **Next:** E2 correlation study on this corpus.
 
+### E2 robustness check - lower ARI thresholds  2026-07-29
+- **Question:** were the strict confidence floors (support 0.9) hiding a signal
+  by dropping too many links?
+- **Method:** re-mined the corpus locally with lower floors (Inference 0.7,
+  Conflict/Rephrase 0.5) and re-ran the correlation.
+- **Result:** links per trace 16.9 -> 58.7 (3.5x more), mean connectivity
+  0.35 -> 0.83. But the structure composite AUC moved only 0.48 -> 0.51, still
+  at chance; length still predicts better (0.55).
+- **Conclusion:** the null is NOT a thresholding artefact. Even with 3.5x more
+  structure and far higher connectivity, correctness does not track structure.
+  This strengthens the null.
+
 ---
 
 ### E2 correlation study (C1)  2026-07-29
