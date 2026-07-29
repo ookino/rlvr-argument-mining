@@ -66,10 +66,12 @@ class ARI:
         batch_size: int = 64,
         max_length: int = 256,
         encoding: str = "concat",     # matches the published module (see _encode)
+        thresholds: dict | None = None,   # override to sweep the confidence floors
     ):
         if encoding not in ("concat", "pair"):
             raise ValueError("encoding must be 'concat' or 'pair'")
         self.encoding = encoding
+        self.thresholds = thresholds or THRESHOLDS
 
         import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -157,7 +159,7 @@ class ARI:
             if label in NO_RELATION_LABELS:
                 result.n_model_no_relation += 1
                 continue
-            floor = THRESHOLDS.get(label)
+            floor = self.thresholds.get(label)
             if floor is None or confidence <= floor:
                 result.n_below_threshold += 1
                 continue
