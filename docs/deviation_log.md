@@ -113,3 +113,23 @@ log as maturity, and a silent omission as a gap.
   study is re-run on the re-scored corpus before any conclusion is drawn about
   whether structure predicts correctness. The corpus now also stores the raw
   relations, so future feature changes can be tested without re-running ARI.
+
+### D-009  2026-07-30  Base model = a reasoning model (Qwen3), not an instruct model
+- **Planned:** generate traces with Qwen 2.5 3B Instruct and prompt it to reason
+  step by step.
+- **Actual:** switch to a native reasoning model - Qwen3-4B for the corpus,
+  Qwen3-1.7B for the lighter training runs - which produces its chain of thought
+  inside <think>...</think> tags. Trace extraction now mines the reasoning from
+  inside the tags and reads the answer from after them (reward/xaif_build.py,
+  _split_think). Generation budget raised (max_new_tokens 512 -> 2048) because
+  reasoning models think for much longer before answering.
+- **Reason:** supervisor was firm that the project (title: "Reasoning LLMs")
+  must use an actual reasoning model. An instruct model's chain of thought is
+  prompt-induced and shallow, so structure measured on it is not representative
+  of how a reasoning model reasons.
+- **Effect on claims:** the pipeline downstream of extraction (ARI, the six
+  features, the scorer, the correlation and fidelity analyses) is unchanged and
+  re-runs on the new corpus. The Qwen2.5-3B-Instruct corpus, its E2 null, and
+  the RQ1 fidelity pilot are retained as an INSTRUCT-MODEL BASELINE; the Qwen3
+  corpus becomes the reasoning-model comparison. Extraction is backward
+  compatible (no <think> tags -> old behaviour), so the baseline still scores.

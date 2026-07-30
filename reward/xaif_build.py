@@ -18,6 +18,24 @@ _ANSWER = re.compile(r"(?:the\s+answer\s+is)\s*:?\s*(.+?)\s*\.?\s*$", re.IGNOREC
 MIN_STEP_CHARS = 15     # shorter than this and it's punctuation or a stray token
 
 
+def _split_think(text: str) -> tuple[str, str]:
+    # A reasoning model (Qwen3 in thinking mode) puts its working inside
+    # <think>...</think> and the final answer after it. We mine the reasoning
+    # (inside think) and read the answer from the part after. A plain instruct
+    # model has no tags, so the whole thing is both. Returns (reasoning, answer_part).
+    lower = text.lower()
+    if "<think>" not in lower:
+        return text, text
+    start = lower.index("<think>") + len("<think>")
+    end = lower.find("</think>")
+    if end == -1:                       # model got cut off before closing the tag
+        reasoning = text[start:].strip()
+        return reasoning, reasoning
+    reasoning = text[start:end].strip()
+    after = text[end + len("</think>"):].strip()
+    return reasoning, (after or reasoning)
+
+
 @dataclass
 class Trace:
     steps: list[str] = field(default_factory=list)
@@ -38,10 +56,14 @@ class Trace:
 def extract_answer(text: str) -> tuple[str | None, bool]:
     # returns (answer, did_it_match_the_format). keep the flag so we can count
     # format failures separately instead of calling them wrong answers.
-    match = _ANSWER.search(text.strip())
+    # read the answer from AFTER the thinking, so "the answer is" inside the
+    # reasoning doesn't get picked up by mistake.
+    _, answer_part = _split_think(text)
+    answer_part = answer_part.strip()
+    match = _ANSWER.search(answer_part)
     if match:
         return match.group(1).strip(), True
-    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
+    lines = [ln.strip() for ln in answer_part.splitlines() if ln.strip()]
     return (lines[-1], False) if lines else (None, False)
 
 
@@ -73,7 +95,10 @@ def _is_answer_line(step: str) -> bool:
 
 
 def build_trace(text: str) -> Trace:
-    steps = split_steps(text)
+    # mine the reasoning (inside <think> for a reasoning model; the whole text
+    # for a plain instruct model), read the answer from after it.
+    reasoning, _ = _split_think(text)
+    steps = split_steps(reasoning)
     answer, _ = extract_answer(text)
 
     # drop trailing "The answer is X" lines. the answer is already extracted

@@ -15,7 +15,10 @@ from reward.features import compute
 from reward.xaif_build import build_trace, extract_answer
 from utils import resumable
 
-MODEL = "Qwen/Qwen2.5-3B-Instruct"
+# A real reasoning model (thinks inside <think>...</think>), per the supervisor.
+# 4B for the corpus; swap to Qwen/Qwen3-1.7B for the lighter training runs.
+# The old Qwen/Qwen2.5-3B-Instruct corpus is kept as the instruct-model baseline.
+MODEL = "Qwen/Qwen3-4B"
 
 
 # The expected answer format for each task family. Without this the model
@@ -107,7 +110,10 @@ def load_generator(model_name=MODEL):
 
 
 def generate_trace(model, tokenizer, question, family=None,
-                   max_new_tokens=512, temperature=0.7):
+                   max_new_tokens=2048, temperature=0.7):
+    # NOTE: reasoning models think for a long time before answering, so
+    # max_new_tokens is much higher than the ~512 an instruct model needed. If a
+    # trace has no answer after </think>, it was likely cut off - raise this.
     import torch
 
     messages = [{"role": "user", "content": build_prompt(question, family)}]
