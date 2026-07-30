@@ -133,3 +133,23 @@ log as maturity, and a silent omission as a gap.
   the RQ1 fidelity pilot are retained as an INSTRUCT-MODEL BASELINE; the Qwen3
   corpus becomes the reasoning-model comparison. Extraction is backward
   compatible (no <think> tags -> old behaviour), so the baseline still scores.
+
+### D-010  2026-07-30  Propositionalisation: test both arms, don't assume
+- **Question raised with supervisor:** should a propositionalisation stage run
+  before ARI, to turn raw steps into clean proposition (I-)nodes in xAIF, the
+  format the argument-mining pipeline is built around? (Related to D-001, where
+  we already do our own segmentation rather than use oAMF's.)
+- **Decision:** do not assume it either way. Run BOTH and decide by measured
+  fidelity:
+  - Arm A (direct): trace -> our steps -> ARI's prediction pipeline (current).
+  - Arm B (propositionalise): trace -> clean proposition nodes -> ARI.
+  Score each arm with the RQ1 fidelity harness (annotate_pilot.py). Keep
+  whichever gives higher precision (fewer spurious links); report the gap.
+- **Rationale:** the supervisor's read was that self-generated reasoning traces
+  may already be clean enough to feed ARI directly, so the extra stage might not
+  be needed - but it is an empirical question, not an assumption. This also
+  directly tests the over-generation finding: if Arm B removes the spurious
+  header/framing links, precision should rise.
+- **Effect on claims:** turns a skipped-step assumption into a measured design
+  choice. Sequencing: run Arm A on the first Qwen3 corpus, look at precision,
+  then build Arm B only if Arm A is not already clean.
