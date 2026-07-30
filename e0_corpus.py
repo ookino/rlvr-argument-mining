@@ -136,6 +136,40 @@ def generate_trace(model, tokenizer, question, family=None,
     return tokenizer.decode(new_tokens, skip_special_tokens=True)
 
 
+def preview(n=3, max_new_tokens=2048, family=None, seed=13):
+    # Generate a few traces and print the raw output plus what build_trace pulls
+    # out of it. For eyeballing a new model before the full run. Saves nothing.
+    # Returns the raw texts so you can poke at them in the notebook.
+    import random
+
+    splits = load_splits(include_external=False)
+    questions = list(splits.train)
+    random.Random(seed).shuffle(questions)
+    if family:
+        questions = [q for q in questions if q.family == family]
+    questions = questions[:n]
+
+    model, tokenizer = load_generator()
+    raw_texts = []
+    for i, item in enumerate(questions, 1):
+        text = generate_trace(model, tokenizer, item.question, item.family, max_new_tokens)
+        raw_texts.append(text)
+        trace = build_trace(text)
+        answer, _ = extract_answer(text)
+        has_think = "<think>" in text.lower()
+        print("=" * 70)
+        print(f"[{i}] {item.family}  (gold: {item.answer})")
+        print(f"has <think> tag: {has_think} | steps: {trace.n_steps} | "
+              f"answer: {answer} | correct: {is_correct(answer, item.answer)}")
+        print("--- raw output (first 2000 chars) ---")
+        print(text[:2000])
+        print("--- parsed steps ---")
+        for j, s in enumerate(trace.steps):
+            print(f"  {j}. {s}")
+        print()
+    return raw_texts
+
+
 def score_trace(ari, trace_text, window=None):
     # Split into steps, find the relations, measure the graph. The pipeline
     # already returns zeros for traces too small to have any structure.
@@ -149,7 +183,7 @@ def generate(
     n_questions=200,
     out="results/E0/corpus.jsonl",
     window=None,
-    max_new_tokens=512,
+    max_new_tokens=2048,      # reasoning models think long; see generate_trace
     fresh=False,
 ):
     import random
