@@ -318,6 +318,28 @@ def summarise(out="results/E0/corpus.jsonl"):
     for f, (fn, fc) in sorted(fam.items()):
         print(f"  {f:34s} {fc:3d}/{fn:<3d} correct ({100*fc//max(fn,1):2d}%)")
 
+    # Early directional hint for the correlation (RQ2): do correct traces look
+    # structurally different from wrong ones? This is a SMELL TEST on a small
+    # run, not a result - too few traces for a real AUC. But if the columns
+    # differ in the expected direction, the eventual AUC is likely > 0.5.
+    feats = ["support_density", "attachment", "connectivity",
+             "support_depth", "conflict_rate", "restatement_rate"]
+    yes = [r for r in rows if r.get("correct")]
+    no = [r for r in rows if not r.get("correct")]
+    if yes and no:
+        print(f"\nstructure means, correct ({len(yes)}) vs wrong ({len(no)}):")
+        print(f"  {'feature':18s} {'correct':>8s} {'wrong':>8s} {'diff':>8s}")
+        for feat in feats:
+            cy = [r[feat] for r in yes if feat in r]
+            cn = [r[feat] for r in no if feat in r]
+            if cy and cn:
+                my, mn = sum(cy) / len(cy), sum(cn) / len(cn)
+                print(f"  {feat:18s} {my:8.3f} {mn:8.3f} {my - mn:+8.3f}")
+        print("  want: support measures correct>wrong (+); "
+              "conflict/restatement correct<wrong (-)")
+    else:
+        print("\n(need both correct and wrong traces for the correct-vs-wrong split)")
+
 
 def reset_corpus(out="results/E0/corpus.jsonl"):
     # Delete the corpus file so a regeneration starts completely fresh. Run this
