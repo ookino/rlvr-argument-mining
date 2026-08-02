@@ -110,13 +110,17 @@ def load_generator(model_name=MODEL):
 
 
 def generate_trace(model, tokenizer, question, family=None,
-                   max_new_tokens=2048, temperature=0.7):
+                   max_new_tokens=2048, temperature=0.6):
     # NOTE: reasoning models think for a long time before answering, so
     # max_new_tokens is much higher than the ~512 an instruct model needed. If a
     # trace has no answer after </think>, it was likely cut off - raise this.
+    # Sampling settings follow the Qwen3 model card for thinking mode
+    # (temp 0.6, top_p 0.95, top_k 20); they warn against greedy decoding.
     import torch
 
     messages = [{"role": "user", "content": build_prompt(question, family)}]
+    # enable_thinking defaults to True for Qwen3, so the <think> block comes for
+    # free - no need to pass it. (A non-Qwen3 tokenizer just ignores the default.)
     prompt_text = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, tokenize=False
     )
@@ -128,12 +132,19 @@ def generate_trace(model, tokenizer, question, family=None,
             max_new_tokens=max_new_tokens,
             do_sample=True,
             temperature=temperature,
-            top_p=0.9,
+            top_p=0.95,
+            top_k=20,
             pad_token_id=tokenizer.pad_token_id,
         )
-    # Keep only the newly generated part, not the prompt.
+    # Keep only the newly generated part, not the prompt. Decode WITHOUT skipping
+    # special tokens, because Qwen3's <think>/</think> are special tokens and
+    # skip_special_tokens=True would strip the very markers we split on. Remove
+    # the chat control tokens by hand instead.
     new_tokens = out[0][enc.input_ids.shape[1]:]
-    return tokenizer.decode(new_tokens, skip_special_tokens=True)
+    text = tokenizer.decode(new_tokens, skip_special_tokens=False)
+    for control in ("<|im_end|>", "<|endoftext|>"):
+        text = text.replace(control, "")
+    return text.strip()
 
 
 def preview(n=3, max_new_tokens=2048, family=None, seed=13):
