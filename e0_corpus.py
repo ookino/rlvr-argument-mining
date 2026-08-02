@@ -181,10 +181,11 @@ def preview(n=3, max_new_tokens=4096, family=None, seed=13):
     return raw_texts
 
 
-def score_trace(ari, trace_text, window=None):
+def score_trace(ari, trace_text, window=None, dedupe=False):
     # Split into steps, find the relations, measure the graph. The pipeline
     # already returns zeros for traces too small to have any structure.
-    trace = build_trace(trace_text)
+    # dedupe=True is Arm B: collapse the model's repetition first (D-010).
+    trace = build_trace(trace_text, dedupe=dedupe)
     relations = ari.identify(trace.steps, window=window)
     features = compute(trace, relations)
     return trace, relations, features
@@ -254,21 +255,23 @@ def _relations_to_dicts(relations):
 
 
 def rescore(in_path="results/E0/corpus.jsonl",
-            out_path="results/E0/corpus_rescored.jsonl", window=None):
+            out_path="results/E0/corpus_rescored.jsonl", window=None, dedupe=False):
     """Re-score an existing corpus with the CURRENT pipeline, without
     regenerating the traces. Runs ARI on the stored trace text (fast: no model
     generation) and recomputes the features. Use this after changing the
     splitting, the conclusion detection, or the feature code. Saves the raw
-    relations too, so the NEXT change needs no ARI at all (see rescore_local)."""
+    relations too, so the NEXT change needs no ARI at all (see rescore_local).
+    dedupe=True re-scores under Arm B (repetition collapsed) - run it into a
+    second file and compare summarise() of both to see the effect (D-010)."""
     from reward.ari import ARI
     from utils import read_jsonl
 
     ari = ARI()
     rows = list(read_jsonl(in_path))
-    print(f"re-scoring {len(rows)} traces from {in_path}")
+    print(f"re-scoring {len(rows)} traces from {in_path} (dedupe={dedupe})")
 
     def work(row):
-        trace, relations, features = score_trace(ari, row["trace"], window)
+        trace, relations, features = score_trace(ari, row["trace"], window, dedupe=dedupe)
         keep = {k: row[k] for k in
                 ("id", "family", "gold", "answer", "extract_ok", "correct", "trace")
                 if k in row}

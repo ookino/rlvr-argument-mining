@@ -116,11 +116,41 @@ def _is_trailing_noise(step: str) -> bool:
     return _is_answer_line(step) or bool(_REFLECTION_LINE.match(step))
 
 
-def build_trace(text: str) -> Trace:
+DEDUPE_THRESHOLD = 0.6   # a step sharing >= this fraction of its words with an
+                         # earlier kept step is treated as repetition and dropped
+
+
+def _word_set(step: str) -> set:
+    return set(w for w in "".join(c.lower() if c.isalnum() else " " for c in step).split())
+
+
+def _jaccard(a: set, b: set) -> float:
+    return len(a & b) / len(a | b) if (a or b) else 0.0
+
+
+def dedupe_steps(steps: list[str], threshold: float = DEDUPE_THRESHOLD) -> list[str]:
+    # Reasoning models repeat themselves heavily - re-deriving the same chain,
+    # re-listing the premises. Drop a step if it shares most of its words with an
+    # earlier kept step, so the relation model sees distinct claims instead of
+    # padding. Lexical only: a first-pass cleanup, not semantic. (Arm B, D-010)
+    kept, kept_sets = [], []
+    for s in steps:
+        ss = _word_set(s)
+        if any(_jaccard(ss, k) >= threshold for k in kept_sets):
+            continue
+        kept.append(s)
+        kept_sets.append(ss)
+    return kept
+
+
+def build_trace(text: str, dedupe: bool = False) -> Trace:
     # mine the reasoning (inside <think> for a reasoning model; the whole text
-    # for a plain instruct model), read the answer from after it.
+    # for a plain instruct model), read the answer from after it. dedupe=True is
+    # Arm B: collapse the model's repetition before scoring (D-010).
     reasoning, _ = _split_think(text)
     steps = split_steps(reasoning)
+    if dedupe:
+        steps = dedupe_steps(steps)
     answer, _ = extract_answer(text)
 
     # drop trailing answer-announcement and self-doubt lines, so the conclusion
