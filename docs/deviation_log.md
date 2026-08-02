@@ -153,3 +153,25 @@ log as maturity, and a silent omission as a gap.
 - **Effect on claims:** turns a skipped-step assumption into a measured design
   choice. Sequencing: run Arm A on the first Qwen3 corpus, look at precision,
   then build Arm B only if Arm A is not already clean.
+
+### D-011  2026-08-02  Conclusion node: drop trailing self-doubt, not just answer lines
+- **Planned (D-008):** the conclusion is the last reasoning step after dropping
+  trailing "The answer is X" lines.
+- **Observed on the Qwen3 pilot:** reasoning models state their verdict and then
+  keep second-guessing - "But wait, the conclusion is...", "Alternatively,
+  suppose...". Those trailing lines became the conclusion node instead of the
+  verdict. On a hand-read formal_fallacies trace, every real support link
+  pointed into the verdict (step 24), but the conclusion was marked as a trailing
+  "But wait" fragment (step 25) - so connectivity measured paths to a node
+  nothing supported. This is a systematic cause of the near-zero connectivity
+  (0.03) on the pilot corpus, not just trace bloat.
+- **Actual:** extend the trailing-line drop to also remove trailing self-doubt
+  ("But wait", "Wait", "Hold on", "Alternatively", "Let me re-check/verify/
+  reconsider/..."), so the conclusion lands on the verdict. Only TRAILING lines
+  are dropped; mid-trace reconsidering is real reasoning and stays. Bare "Hmm"/
+  "Actually" openers are excluded as they usually carry real content.
+  (reward/xaif_build.py, _REFLECTION_LINE / _is_trailing_noise.)
+- **Effect on claims:** fixes connectivity and support_depth on reasoning traces.
+  Verified 0/300 conclusion indices change on the instruct corpus, so the
+  instruct baseline is untouched and the two corpora stay comparable. The Qwen3
+  corpus must be re-scored under this rule before its connectivity is trusted.

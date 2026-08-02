@@ -94,6 +94,28 @@ def _is_answer_line(step: str) -> bool:
     return bool(_ANSWER_LINE.match(step))
 
 
+# reasoning models state their verdict, then keep second-guessing:
+# "But wait, let me reconsider...", "Alternatively, suppose...". Like the answer
+# line, that trailing chatter isn't the argumentative conclusion, so it must not
+# become the conclusion node - the conclusion should land on the verdict. We drop
+# these only when they TRAIL (mid-trace reconsidering is real reasoning and
+# stays). Deliberately conservative: bare "Hmm"/"Actually" openers are excluded
+# because they usually carry real content. (D-011)
+_REFLECTION_LINE = re.compile(
+    r"^\s*(but\s+)?"
+    r"(wait\b|hold\s+on\b|alternatively\b|"
+    r"let\s+me\s+(re-?check|check\s+again|verify|re-?consider|re-?examine|"
+    r"double[-\s]?check|confirm|make\s+sure|think\s+again|go\s+(back|over)))",
+    re.IGNORECASE,
+)
+
+
+def _is_trailing_noise(step: str) -> bool:
+    # a step that shouldn't be allowed to be the conclusion: an answer
+    # announcement or trailing self-doubt.
+    return _is_answer_line(step) or bool(_REFLECTION_LINE.match(step))
+
+
 def build_trace(text: str) -> Trace:
     # mine the reasoning (inside <think> for a reasoning model; the whole text
     # for a plain instruct model), read the answer from after it.
@@ -101,9 +123,10 @@ def build_trace(text: str) -> Trace:
     steps = split_steps(reasoning)
     answer, _ = extract_answer(text)
 
-    # drop trailing "The answer is X" lines. the answer is already extracted
-    # above, so nothing is lost, and the conclusion becomes the last real step.
-    while steps and _is_answer_line(steps[-1]):
+    # drop trailing answer-announcement and self-doubt lines, so the conclusion
+    # lands on the verdict rather than a "But wait..." afterthought. the answer
+    # is already extracted above, so nothing is lost. (D-008, D-011)
+    while steps and _is_trailing_noise(steps[-1]):
         steps.pop()
 
     conclusion_index = len(steps) - 1 if steps else None
