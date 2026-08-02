@@ -110,7 +110,7 @@ def load_generator(model_name=MODEL):
 
 
 def generate_trace(model, tokenizer, question, family=None,
-                   max_new_tokens=2048, temperature=0.6):
+                   max_new_tokens=4096, temperature=0.6):
     # NOTE: reasoning models think for a long time before answering, so
     # max_new_tokens is much higher than the ~512 an instruct model needed. If a
     # trace has no answer after </think>, it was likely cut off - raise this.
@@ -147,7 +147,7 @@ def generate_trace(model, tokenizer, question, family=None,
     return text.strip()
 
 
-def preview(n=3, max_new_tokens=2048, family=None, seed=13):
+def preview(n=3, max_new_tokens=4096, family=None, seed=13):
     # Generate a few traces and print the raw output plus what build_trace pulls
     # out of it. For eyeballing a new model before the full run. Saves nothing.
     # Returns the raw texts so you can poke at them in the notebook.
@@ -194,7 +194,7 @@ def generate(
     n_questions=200,
     out="results/E0/corpus.jsonl",
     window=None,
-    max_new_tokens=2048,      # reasoning models think long; see generate_trace
+    max_new_tokens=4096,      # reasoning models think long; see generate_trace
     fresh=False,
 ):
     import random
