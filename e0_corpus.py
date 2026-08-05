@@ -380,3 +380,47 @@ def inspect(out="results/E0/corpus.jsonl", only="all", family=None, n=5):
         shown += 1
         if shown >= n:
             break
+
+
+def generate_probe(n_questions=20, k=8, out="results/E0/probe.jsonl",
+                   window=10, max_new_tokens=4096, fresh=False, dedupe=False):
+    # Reward-design variance probe: k completions per question, so within-group
+    # (per-question) reward variance can be measured - the thing GRPO actually
+    # needs. Each row carries question_id and completion so groups can be formed.
+    import random
+    from reward.ari import ARI
+
+    if fresh:
+        reset_corpus(out)
+    splits = load_splits(include_external=False)
+    questions = list(splits.train)
+    random.Random(13).shuffle(questions)
+    questions = questions[:n_questions]
+    jobs = [(item, j) for item in questions for j in range(k)]
+    print(f"{len(questions)} questions x {k} completions = {len(jobs)} traces")
+
+    model, tokenizer = load_generator()
+    ari = ARI()
+
+    def work(job):
+        item, j = job
+        trace_text = generate_trace(model, tokenizer, item.question, item.family, max_new_tokens)
+        answer, extracted = extract_answer(trace_text)
+        trace, relations, features = score_trace(ari, trace_text, window, dedupe=dedupe)
+        return {
+            "id": f"{item.id}#{j}",
+            "question_id": item.id,
+            "completion": j,
+            "family": item.family,
+            "gold": item.answer,
+            "answer": answer,
+            "extract_ok": extracted,
+            "correct": is_correct(answer, item.answer),
+            "n_steps": trace.n_steps,
+            "n_relations": len(relations.relations),
+            "trace": trace_text,
+            **features.as_dict(),
+        }
+
+    n_new = resumable(jobs, out, work, id_fn=lambda job: f"{job[0].id}#{job[1]}")
+    print(f"done. {n_new} completions written to {out}")

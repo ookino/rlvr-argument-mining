@@ -81,6 +81,19 @@ def split_steps(text: str) -> list[str]:
     return steps
 
 
+def to_sentences(steps: list[str]) -> list[str]:
+    # One sentence per step. ARI wants single claims, but a reasoning model's
+    # newlines separate paragraphs, so newline steps come out ~3 sentences long
+    # and ARI reads them as restatements of each other. (D-014)
+    out: list[str] = []
+    for step in steps:
+        for part in _SENTENCE.split(step):
+            part = _NUMBERED.sub("", part).strip()
+            if len(part) >= MIN_STEP_CHARS:
+                out.append(part)
+    return out
+
+
 # a line that just says "The answer is X" is formatting, not reasoning. ARI never
 # links the reasoning to it, so it made a bad conclusion node. drop it. (D-008)
 _ANSWER_LINE = re.compile(
@@ -143,12 +156,21 @@ def dedupe_steps(steps: list[str], threshold: float = DEDUPE_THRESHOLD) -> list[
     return kept
 
 
-def build_trace(text: str, dedupe: bool = False) -> Trace:
+def build_trace(text: str, dedupe: bool = False,
+                sentence_level: bool = True) -> Trace:
     # mine the reasoning (inside <think> for a reasoning model; the whole text
     # for a plain instruct model), read the answer from after it. dedupe=True is
     # Arm B: collapse the model's repetition before scoring (D-010).
+    # sentence_level=True breaks paragraph-steps into single claims, the unit
+    # ARI is trained on (D-014). Pass False to reproduce pre-D-014 scoring.
     reasoning, _ = _split_think(text)
     steps = split_steps(reasoning)
+    # drop trailing noise BEFORE splitting, so a whole "But wait..." paragraph
+    # goes rather than just its last sentence (D-011)
+    while steps and _is_trailing_noise(steps[-1]):
+        steps.pop()
+    if sentence_level:
+        steps = to_sentences(steps)
     if dedupe:
         steps = dedupe_steps(steps)
     answer, _ = extract_answer(text)
