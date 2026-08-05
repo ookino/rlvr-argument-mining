@@ -424,3 +424,66 @@ def generate_probe(n_questions=20, k=8, out="results/E0/probe.jsonl",
 
     n_new = resumable(jobs, out, work, id_fn=lambda job: f"{job[0].id}#{job[1]}")
     print(f"done. {n_new} completions written to {out}")
+
+
+def generate_probe_batched(n_questions=20, k=8, out="results/E0/probe.jsonl",
+                           window=10, max_new_tokens=4096, batch_size=16):
+    # Batched version of the probe generator: generates a whole batch of prompts
+    # per forward pass instead of one at a time (~10x faster on an A100).
+    # Resumable: skips ids already in `out`. do_sample makes each row differ, so
+    # the k completions of a question are independent samples.
+    import os, json as _json, random, torch
+    from reward.ari import ARI
+
+    splits = load_splits(include_external=False)
+    questions = list(splits.train)
+    random.Random(13).shuffle(questions)
+    questions = questions[:n_questions]
+    jobs = [(item, j) for item in questions for j in range(k)]
+
+    done = set()
+    if os.path.exists(out):
+        for line in open(out):
+            try:
+                done.add(_json.loads(line)["id"])
+            except Exception:
+                pass
+    jobs = [job for job in jobs if f"{job[0].id}#{job[1]}" not in done]
+    print(f"{len(jobs)} completions to generate ({len(done)} already done), batch {batch_size}")
+
+    model, tokenizer = load_generator()
+    tokenizer.padding_side = "left"   # required for correct batched decoder generation
+    ari = ARI()
+
+    with open(out, "a") as fh:
+        for start in range(0, len(jobs), batch_size):
+            batch = jobs[start:start + batch_size]
+            prompts = [
+                tokenizer.apply_chat_template(
+                    [{"role": "user", "content": build_prompt(it.question, it.family)}],
+                    add_generation_prompt=True, tokenize=False)
+                for it, _ in batch
+            ]
+            enc = tokenizer(prompts, return_tensors="pt", padding=True).to(model.device)
+            with torch.no_grad():
+                out_ids = model.generate(
+                    **enc, max_new_tokens=max_new_tokens, do_sample=True,
+                    temperature=0.6, top_p=0.95, top_k=20,
+                    pad_token_id=tokenizer.pad_token_id)
+            gen = out_ids[:, enc.input_ids.shape[1]:]
+            for (it, j), row in zip(batch, gen):
+                text = tokenizer.decode(row, skip_special_tokens=False)
+                for c in ("<|im_end|>", "<|endoftext|>"):
+                    text = text.replace(c, "")
+                text = text.strip()
+                answer, extracted = extract_answer(text)
+                trace, relations, features = score_trace(ari, text, window)
+                fh.write(_json.dumps({
+                    "id": f"{it.id}#{j}", "question_id": it.id, "completion": j,
+                    "family": it.family, "gold": it.answer, "answer": answer,
+                    "extract_ok": extracted, "correct": is_correct(answer, it.answer),
+                    "n_steps": trace.n_steps, "n_relations": len(relations.relations),
+                    "trace": text, **features.as_dict()}) + "\n")
+            fh.flush()
+            print(f"  {min(start + batch_size, len(jobs))}/{len(jobs)}", flush=True)
+    print("done ->", out)
