@@ -15,10 +15,12 @@ from reward.features import compute
 from reward.xaif_build import build_trace, extract_answer
 from utils import resumable
 
-# A real reasoning model (thinks inside <think>...</think>), per the supervisor.
-# 4B for the corpus; swap to Qwen/Qwen3-1.7B for the lighter training runs.
-# The old Qwen/Qwen2.5-3B-Instruct corpus is kept as the instruct-model baseline.
-MODEL = "Qwen/Qwen3-4B"
+# Qwen3-1.7B is the training/probe model - small enough for GRPO on Colab, and
+# the reward-design probe should run on the model that will actually be trained.
+# The 4B diagnostic corpus (results/E0/corpus_reasoning_full.jsonl) is already
+# saved; set MODEL back to Qwen/Qwen3-4B only to regenerate that. The instruct
+# baseline (Qwen2.5-3B-Instruct) is corpus_instruct.jsonl.
+MODEL = "Qwen/Qwen3-1.7B"
 
 
 # The expected answer format for each task family. Without this the model
