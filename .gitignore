@@ -33,6 +33,11 @@ docs/learning/
 # The built submission archive itself
 submission-*.zip
 
+# Built dissertation output (the chapter sources are tracked, the build is not)
+report/dissertation.pdf
+report/dissertation.docx
+report/dissertation.tex
+
 # OS
 .DS_Store
 
@@ -45,3 +50,8 @@ outputs/
 
 # annotation working sheets (personal notes, incl. any AI cross-check copy)
 results/E0/annotation_sheet*.md
+report/CLAUDE.md
+2604.12770v1.pdf
+2024.acl-long.244.pdf
+NLP_CW1_Report.pdf
+NLP_CW2_Transformer_and_LLM.pdf
